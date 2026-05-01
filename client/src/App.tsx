@@ -16,7 +16,7 @@ function App() {
         <LandingPage onCreateRoom={() => setView("room")} />
       )}
 
-      {view === "room" && <RoomPage />}
+      {view === "room" && <RoomPage onLeave={() => setView("landing")} />}
     </main>
   );
 }

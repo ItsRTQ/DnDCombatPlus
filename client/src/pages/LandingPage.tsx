@@ -30,7 +30,7 @@ export function LandingPage({ onCreateRoom }: LandingPageProps) {
         <div className="w-full rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl shadow-black/50 backdrop-blur-md">
           <div className="text-center">
             <p className="text-sm font-bold uppercase tracking-[0.25em] text-white/60">
-              DnDCombatPlus
+              DnD-CombatPlus
             </p>
 
             <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
