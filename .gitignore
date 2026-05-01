@@ -16,6 +16,8 @@
 coverage.*
 *.coverprofile
 profile.cov
+app.log
+.app.pid
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
