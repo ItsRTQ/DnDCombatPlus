@@ -1,81 +1,50 @@
-APP_NAME=DnDCombatPlus
+APP_NAME=DnD-CombatPlus
 APP_URL=http://localhost:8080
 HEALTH_URL=$(APP_URL)/health
-PID_FILE=.app.pid
-LOG_FILE=app.log
 
-.PHONY: run start stop restart logs test test-health test-home wait help
+.PHONY: run stop restart logs build test debug help
 
 run:
-	@echo "Starting $(APP_NAME) in the foreground..."
-	go run ./cmd/web
-
-start:
 	@echo "Starting $(APP_NAME) in the background..."
-	@rm -f $(LOG_FILE)
-	@go run ./cmd/web > $(LOG_FILE) 2>&1 & echo $$! > $(PID_FILE)
-	@echo "App started with PID $$(cat $(PID_FILE))"
+	docker compose up -d --build
+	@echo "App started in background."
 	@echo "Logs: make logs"
 
-stop:
-	@if [ -f $(PID_FILE) ]; then \
-		echo "Stopping $(APP_NAME)..."; \
-		kill $$(cat $(PID_FILE)) 2>/dev/null || true; \
-		rm -f $(PID_FILE); \
-	else \
-		echo "No PID file found. App may not be running from make start."; \
-	fi
+debug:
+	@echo "Starting $(APP_NAME) in DEBUG mode (Hot Reload)..."
+	docker compose -f docker-compose.debug.yml up
 
-restart: stop start
+stop:
+	@echo "Stopping $(APP_NAME)..."
+	docker compose down
+
+restart:
+	@echo "Restarting $(APP_NAME)..."
+	docker compose restart
 
 logs:
-	@if [ -f $(LOG_FILE) ]; then \
-		echo "Showing live logs from $(LOG_FILE). Press Ctrl+C to exit."; \
-		tail -f $(LOG_FILE); \
-	else \
-		echo "No log file found. Run 'make start' first."; \
-	fi
+	@echo "Showing live logs. Press Ctrl+C to exit."
+	docker compose logs -f
 
-wait:
-	@echo "Waiting for app to respond..."
-	@for i in 1 2 3 4 5; do \
-		if curl -fs $(HEALTH_URL) > /dev/null; then \
-			echo "App is ready."; \
-			exit 0; \
-		fi; \
-		echo "Attempt $$i failed. Retrying..."; \
-		sleep 1; \
-	done; \
-	echo "App did not respond in time."; \
-	echo "Check logs with: make logs"; \
-	exit 1
-
-test-health:
-	@echo "Testing health endpoint..."
-	@curl -i $(HEALTH_URL)
-
-test-home:
-	@echo "Testing home endpoint..."
-	@curl -i $(APP_URL)
+build:
+	@echo "Building Docker images..."
+	docker compose build
 
 test:
-	@echo "Running Go tests..."
-	go test ./...
-	@$(MAKE) start
-	@$(MAKE) wait
-	@echo "Testing app health with curl..."
-	@curl -f $(HEALTH_URL)
-	@echo "\nApp is running correctly."
-	@$(MAKE) stop
+	@echo "Running tests in Docker..."
+	docker compose up -d --build
+	@echo "Waiting for backend to be healthy..."
+	@docker compose ps backend | grep -q "(healthy)" || (echo "Waiting..." && sleep 5)
+	@curl -f $(HEALTH_URL) || (echo "Health check failed" && docker compose down && exit 1)
+	@echo "App is healthy."
+	@docker compose down
 
 help:
 	@echo "Available commands:"
-	@echo "  make run          - Run the Go app in the foreground"
-	@echo "  make start        - Run the Go app in the background"
-	@echo "  make stop         - Stop the background app"
-	@echo "  make restart      - Restart the background app"
-	@echo "  make logs         - Show live app logs"
-	@echo "  make test-health  - Test /health with curl"
-	@echo "  make test-home    - Test / with curl"
-	@echo "  make test         - Run tests, start app, curl health, stop app"
-	@echo "  make wait         - Wait until the app responds"
+	@echo "  make run      - Build and start all services in the background"
+	@echo "  make debug    - Start all services in DEBUG mode (Hot Reload enabled)"
+	@echo "  make stop     - Stop and remove all containers"
+	@echo "  make restart  - Restart all containers"
+	@echo "  make logs     - Show live logs from all services"
+	@echo "  make build    - Build Docker images"
+	@echo "  make test     - Start services, check health, and stop"

@@ -366,7 +366,7 @@ Commit `package-lock.json`.
 
 ## Development Commands
 
-### Backend
+### All Services (Docker)
 
 From repo root:
 
@@ -374,58 +374,46 @@ From repo root:
 make run
 ```
 
+or for real-time development (Hot Reload):
+
+```bash
+make debug
+```
+
 or:
 
 ```bash
-make start
 make logs
 ```
 
-Health check:
+The project uses Docker Compose to run both the backend and frontend. `make run` starts services in the background.
+
+Backend: [http://localhost:8080](http://localhost:8080)
+Frontend: [http://localhost:5173](http://localhost:5173)
+
+### Tests
 
 ```bash
-curl http://localhost:8080/health
+make test
 ```
 
-### Frontend
+### Manual Controls (Optional)
 
-From repo root:
+If you need to run things outside Docker:
+
+#### Backend
+
+```bash
+go run ./cmd/web
+```
+
+#### Frontend
 
 ```bash
 cd client
 npm install
 npm run dev
 ```
-
-Or, if network access from another device is needed:
-
-```bash
-npm run dev -- --host 0.0.0.0
-```
-
-Expected frontend URL:
-
-```txt
-http://localhost:5173
-```
-
-### Tests
-
-Backend:
-
-```bash
-go test ./...
-```
-
-Frontend:
-
-```bash
-cd client
-npm run lint
-npm run build
-```
-
-Only use commands that exist in `client/package.json`.
 
 ---
 
