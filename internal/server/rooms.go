@@ -31,11 +31,10 @@ type Entity struct {
 }
 
 type Room struct {
-	Key              string             `json:"roomKey"`
-	DMToken          string             `json:"-"`
-	Entities         map[string]*Entity `json:"entities"`
-	CurrentTurn      string             `json:"currentTurn"`
-	EndTurnRequested bool               `json:"endTurnRequested"`
+	Key         string             `json:"roomKey"`
+	DMToken     string             `json:"-"`
+	Entities    map[string]*Entity `json:"entities"`
+	CurrentTurn string             `json:"currentTurn"`
 }
 
 type RoomManager struct {
@@ -289,7 +288,6 @@ func (rm *RoomManager) SetCurrentTurn(roomKey string, entityId string) error {
 	}
 
 	room.CurrentTurn = entityId
-	room.EndTurnRequested = false // Reset request when turn changes
 	return nil
 }
 
@@ -306,7 +304,7 @@ func (rm *RoomManager) RequestEndTurn(roomKey string, entityId string) error {
 		return fmt.Errorf("not your turn")
 	}
 
-	room.EndTurnRequested = true
+	room.CurrentTurn = "" // Directly clear the turn
 	return nil
 }
 

@@ -67,6 +67,55 @@ One sentence describing the requested task.
 
 ## Change Log
 
+### 2026-05-01 - Fix player "End Turn" button interaction
+
+**Status:** Done
+
+**Task:**
+Resolve the issue where players were unable to click the "End Your Turn" button.
+
+**Files changed:**
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Bug Fix:** Removed the `disabled` attribute from player/creature character cards. Previously, because players lacked a `dmToken`, the entire card (implemented as a `<button>`) was disabled, which blocked all clicks to the internal "End Your Turn" button.
+- **Refactor:** Converted character cards from `<button>` to `<div>` to allow nested interactive elements (like buttons) to function correctly.
+- **UI Logic:** Maintained selection logic for the DM by adding `cursor-pointer` and `onClick` selection handlers that only fire if a `dmToken` is present.
+
+**Verification:**
+- Verified that nested buttons within the character cards are now clickable for players.
+- Ran `npm run build` and `npm run lint` in `client` directory (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-01 - Simplify "End Turn" flow (Direct Action)
+
+**Status:** Done
+
+**Task:**
+Scrap the DM confirmation for ending turns and allow players to end their own turns directly.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- client/src/pages/RoomPage.tsx
+- client/src/types/combat.ts
+
+**Summary:**
+- **Backend:** Updated `RequestEndTurn` to directly clear the `CurrentTurn` instead of setting a request flag.
+- **Backend:** Removed the `EndTurnRequested` field from the `Room` struct as it is no longer needed.
+- **Frontend:** Removed the "Waiting for Host" logic and yellow pulsing state from the player's "End Your Turn" button.
+- **Frontend:** Removed the DM notification banner for turn end requests.
+- **Frontend:** Simplified the turn indicator UI to only show the current turn without any "End Requested" state.
+
+**Verification:**
+- Verified that clicking "End Your Turn" as a player instantly clears the current turn for all participants.
+- Ran `go build ./...` and `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- DM still has full override control by selecting any entity and clicking "Set Turn".
+
 ### 2026-05-01 - Add global DM notification for turn end requests
 
 **Status:** Done
@@ -144,6 +193,28 @@ Allow players to signal the end of their turn, notifying the DM.
 
 **Notes / Follow-ups:**
 - DM still has final authority to move to the next turn by selecting an entity and clicking "Set Turn".
+
+### 2026-05-01 - Refine "End Turn" visual feedback
+
+**Status:** Done
+
+**Task:**
+Improve the "End Turn" experience with clearer visual states for both players and DMs.
+
+**Files changed:**
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- Updated the player's "End Your Turn" button: it now turns **yellow**, pulses, and says **"Waiting for Host..."** after being clicked.
+- Disabled the button once a request is active to prevent double-submissions.
+- Refined the DM's notification banner to clearly indicate which player is ready to end their turn.
+- Leveraged the real-time WebSocket system to ensure these states update instantly for all participants.
+
+**Verification:**
+- Ran `npm run build` and `npm run lint` in `client` directory (passed).
+
+**Notes / Follow-ups:**
+- None.
 
 ### 2026-05-01 - Implement Real-time updates with WebSockets
 

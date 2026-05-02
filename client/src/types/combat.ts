@@ -19,5 +19,4 @@ export interface Room {
   roomKey: string;
   entities: Record<string, Entity>;
   currentTurn: string;
-  endTurnRequested: boolean;
 }

@@ -370,79 +370,15 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
         </button>
       </div>
 
-      {/* DM End Turn Request Notification */}
-      {dmToken && room?.endTurnRequested && (
-        <div className="mb-6 w-full max-w-5xl animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-3xl border-2 border-emerald-500/50 bg-emerald-500/10 p-6 backdrop-blur-md shadow-2xl shadow-emerald-500/10">
-            <div className="flex items-center gap-4 text-center sm:text-left">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-black animate-pulse">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="w-6 h-6"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-11.25a.75.75 0 0 0-1.5 0v2.5h-2.5a.75.75 0 0 0 0 1.5h2.5v2.5a.75.75 0 0 0 1.5 0v-2.5h2.5a.75.75 0 0 0 0-1.5h-2.5v-2.5Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-emerald-400 leading-tight uppercase tracking-tight">
-                  Turn End Requested
-                </h3>
-                <p className="text-sm text-emerald-400/60 font-medium">
-                  {room.entities[room.currentTurn]?.name} is ready to end their turn.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                if (!room) return;
-                fetch(
-                  `${import.meta.env.VITE_API_BASE_URL}/rooms/${
-                    room.roomKey
-                  }/turn`,
-                  {
-                    method: "PUT",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${dmToken}`,
-                    },
-                    body: JSON.stringify({ entityId: "" }),
-                  }
-                ).then(() => room && fetchRoom(room.roomKey));
-              }}
-              className="h-14 w-full sm:w-auto px-10 rounded-2xl bg-emerald-500 text-black text-sm font-black uppercase tracking-widest transition hover:bg-emerald-400 active:scale-[0.98] shadow-lg shadow-emerald-500/20"
-            >
-              Confirm & Clear Turn
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="w-full rounded-3xl border border-white/10 bg-white/10 p-6 md:p-8 shadow-2xl shadow-black/50 backdrop-blur-md">
         <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-8">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">
             Players
           </h2>
           {room?.currentTurn && (
-            <div
-              className={`px-3 py-1 rounded-full border transition-all ${
-                room.endTurnRequested
-                  ? "bg-red-500/20 border-red-500/40 animate-pulse"
-                  : "bg-emerald-500/10 border-emerald-500/20"
-              }`}
-            >
-              <span
-                className={`text-[10px] font-black uppercase tracking-widest ${
-                  room.endTurnRequested ? "text-red-400" : "text-emerald-400"
-                }`}
-              >
-                {room.endTurnRequested ? "End Requested: " : "Turn: "}
-                {room.entities[room.currentTurn]?.name}
+            <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                Turn: {room.entities[room.currentTurn]?.name}
               </span>
             </div>
           )}
@@ -462,23 +398,22 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
               </div>
             ) : (
               players.map((p) => (
-                <button
+                <div
                   key={p.id}
                   onClick={() => dmToken && setSelectedEntityId(p.id)}
-                  disabled={!dmToken}
                   className={`w-full text-left rounded-2xl border p-4 transition-all ${
+                    dmToken ? "cursor-pointer" : "cursor-default"
+                  } ${
                     selectedEntityId === p.id
                       ? "ring-2 ring-white/50 border-white/20"
-                      : "border-white/10"
+                      : "border-white/10 hover:border-white/20"
                   } ${
                     p.id === currentPlayer?.id
                       ? "bg-emerald-500/10 border-emerald-500/50"
                       : "bg-white/5"
                   } ${
                     room?.currentTurn === p.id
-                      ? room.endTurnRequested
-                        ? "ring-2 ring-red-500 animate-pulse ring-offset-2 ring-offset-black"
-                        : "ring-2 ring-emerald-500 ring-offset-2 ring-offset-black"
+                      ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-black"
                       : ""
                   }`}
                 >
@@ -496,22 +431,20 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
                     </span>
                   </span>
 
-                  {p.id === currentPlayer?.id &&
-                    room?.currentTurn === p.id &&
-                    !room.endTurnRequested && (
-                      <div className="mt-4">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            requestEndTurn();
-                          }}
-                          className="w-full h-10 rounded-xl bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest transition hover:bg-emerald-400 active:scale-95"
-                        >
-                          End Your Turn
-                        </button>
-                      </div>
-                    )}
-                </button>
+                  {p.id === currentPlayer?.id && room?.currentTurn === p.id && (
+                    <div className="mt-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          requestEndTurn();
+                        }}
+                        className="w-full h-10 rounded-xl bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest transition hover:bg-emerald-400 active:scale-95"
+                      >
+                        End Your Turn
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))
             )}
           </div>
@@ -526,14 +459,15 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
               </div>
             ) : (
               creatures.map((c) => (
-                <button
+                <div
                   key={c.id}
                   onClick={() => dmToken && setSelectedEntityId(c.id)}
-                  disabled={!dmToken}
                   className={`w-full text-left rounded-2xl border p-4 transition-all ${
+                    dmToken ? "cursor-pointer" : "cursor-default"
+                  } ${
                     selectedEntityId === c.id
                       ? "ring-2 ring-white/50 border-white/20"
-                      : "border-white/10"
+                      : "border-white/10 hover:border-white/20"
                   } ${
                     room?.currentTurn === c.id
                       ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-black"
@@ -546,7 +480,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
                       HP: {c.health}/{c.maxHealth}
                     </span>
                   </div>
-                </button>
+                </div>
               ))
             )}
 
