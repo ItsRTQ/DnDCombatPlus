@@ -67,6 +67,419 @@ One sentence describing the requested task.
 
 ## Change Log
 
+### 2026-05-01 - Add global DM notification for turn end requests
+
+**Status:** Done
+
+**Task:**
+Ensure the DM sees turn end requests immediately, even without having an entity selected.
+
+**Files changed:**
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- Moved the "Confirm End Turn" functionality from the selected-entity panel to a global notification banner.
+- The banner appears at the top of the `RoomPage` for the DM whenever `room.endTurnRequested` is true.
+- Styled the banner with high visibility: emerald background, pulsing icon, and a prominent "Confirm & Clear Turn" button.
+- Cleaned up the redundant button from the DM Action Panel.
+
+**Verification:**
+- Verified that the banner appears automatically for the DM when a player ends their turn, regardless of selection.
+- Verified that clicking the button clears the turn for everyone.
+- Ran `npm run build` and `npm run lint` in `client` directory (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-01 - Add DM "Confirm End Turn" button
+
+**Status:** Done
+
+**Task:**
+Make the "Confirm End Turn" action visible and easily accessible for the DM when a player requests it.
+
+**Files changed:**
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- Added a pulsing emerald **"Confirm End Turn"** button to the DM Action Panel.
+- The button only appears when a player has signaled they want to end their turn (`room.endTurnRequested`).
+- Clicking the button clears the current turn on the backend, resetting the combat state to a neutral "no one's turn" state.
+- Fixed TypeScript null-check errors related to the room object in the new handler.
+
+**Verification:**
+- Verified that the button appears only when a request is active.
+- Verified that clicking the button resets the turn for all participants.
+- Ran `npm run build` and `npm run lint` in `client` directory (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-01 - Implement Player "End Turn" request
+
+**Status:** Done
+
+**Task:**
+Allow players to signal the end of their turn, notifying the DM.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- internal/server/server.go
+- client/src/pages/RoomPage.tsx
+- client/src/types/combat.ts
+
+**Summary:**
+- **Backend:** Added `EndTurnRequested` flag to the `Room` state.
+- **Backend:** Implemented `RequestEndTurn` method and `POST .../end-turn` endpoint for players.
+- **Backend:** Ensured `EndTurnRequested` is reset whenever the DM manually changes the turn.
+- **Frontend:** Added an **"End Your Turn"** button that only appears for the active player.
+- **Frontend:** Implemented visual feedback: when a player requests to end their turn, their card border and the turn indicator pulse red for everyone (especially the DM).
+- **Bug Fix:** Fixed a regression in `deleteEntityHandler` where players couldn't remove themselves from the room.
+
+**Verification:**
+- Verified that the "End Your Turn" button correctly updates the room state.
+- Verified that the pulsing red UI appears when a request is active.
+- Ran `go build ./...` and `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- DM still has final authority to move to the next turn by selecting an entity and clicking "Set Turn".
+
+### 2026-05-01 - Implement Entity caps (Max 7 per side)
+
+**Status:** Done
+
+**Task:**
+Limit the number of entities in each group to 7 (max 7 players and 7 enemies).
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Backend:** Enforced a cap of 7 entities per type in `AddEntity` and `JoinPlayer` methods.
+- **Backend:** Updated `addEntityHandler` to pre-validate that batch creature creation won't exceed the 7-enemy limit.
+- **Frontend:** Updated `RoomPage.tsx` to hide the "+ Add Creature" button and display an "Enemy Cap Reached" indicator when 7 enemies are present.
+- **Frontend:** Handled backend error messages during join/add actions to inform users when a cap is reached.
+
+**Verification:**
+- Verified that trying to add an 8th enemy or player returns a `400 Bad Request` or `404 Not Found` (mapped to join) error from the backend.
+- Ran `go build ./...` and `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- Players will see a clear "Room is full" message if they try to join a room with 7 players already inside.
+
+### 2026-05-01 - Implement Batch creature creation
+
+**Status:** Done
+
+**Task:**
+Add an "amount" field to the New Creature menu to allow creating multiple creatures at once (max 5).
+
+**Files changed:**
+- internal/server/handlers.go
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Backend:** Updated `AddEntityRequest` to include an `Amount` field.
+- **Backend:** Updated `addEntityHandler` to loop and create multiple entities if `Amount > 1`, using numbered names (e.g., "Goblin 1", "Goblin 2").
+- **Frontend:** Added `creatureAmount` state to `RoomPage.tsx`.
+- **Frontend:** Added an "Amount (Max 5)" input field to the "New Creature" modal.
+- **Frontend:** Updated `addCreature` to send the amount to the backend.
+
+**Verification:**
+- Verified backend numbering logic: "Goblin 1", "Goblin 2", etc.
+- Ran `go build ./...` and `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-01 - Fix DM "Rename" and "Max HP" controls
+
+**Status:** Done
+
+**Task:**
+Resolve issues where "Rename" and "Max HP" actions were not working for the DM.
+
+**Files changed:**
+- internal/server/server.go
+- internal/server/handlers.go
+- internal/server/rooms.go
+
+**Summary:**
+- **Bug Fix:** Added `PATCH` to the allowed methods in the CORS middleware; previously, the browser blocked these requests.
+- **Backend Improvement:** Updated `UpdateEntityRequest` and `UpdateEntity` to use pointers for `name` and `maxHealth`. This allows the server to correctly distinguish between a partial update (e.g., only renaming) and an intentional "zero" or "empty" value.
+- **Backend:** Ensured proper clamping of current health if the maximum health is reduced below the current level.
+
+**Verification:**
+- Verified that `PATCH` requests are now allowed by the server.
+- Verified Go build and frontend build/lint (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-01 - Add pulsing red border to session notifications
+
+**Status:** Done
+
+**Task:**
+Make the kick/end session popup's red border pulse slowly for better visibility.
+
+**Files changed:**
+- client/src/pages/LandingPage.tsx
+
+**Summary:**
+- Added the `animate-pulse` Tailwind class to the notification popup container.
+- Increased the border opacity to `border-red-500/40` to make the pulsing effect more prominent against the dark background.
+
+**Verification:**
+- Ran `npm run build` and `npm run lint` in `client` directory (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-01 - Implement Session notifications (Kicked/Ended)
+
+**Status:** Done
+
+**Task:**
+Show clear popup messages when a player is kicked or a room session ends.
+
+**Files changed:**
+- client/src/App.tsx
+- client/src/pages/LandingPage.tsx
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- Added global `notification` state to `App.tsx` and updated `handleLeaveRoom` to accept an optional message.
+- Implemented a themed notification popup on the `LandingPage` with a 5-second auto-clear and manual close button.
+- Updated `RoomPage` to pass specific messages to `onLeave`:
+    - "You have been kicked by host" when the player's entity is removed.
+    - "This room has been ended by host" when the room is deleted (404).
+
+**Verification:**
+- Ran `npm run build` and `npm run lint` in `client` directory (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-01 - Implement Player kick if removed by DM
+
+**Status:** Done
+
+**Task:**
+Ensure a player is automatically kicked from their session if the DM manually removes their character from the room.
+
+**Files changed:**
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- Updated the polling logic in `fetchRoom` to check for the current player's existence in the room state.
+- If the player's entity ID is missing from the fetched `data.entities`, the `onLeave()` handler is called to redirect them to the landing page.
+- Added `currentPlayer` as a dependency to the `fetchRoom` callback.
+
+**Verification:**
+- Ran `npm run build` and `npm run lint` in `client` directory (passed).
+
+**Notes / Follow-ups:**
+- This complements the previous "Room deleted" kick logic.
+
+### 2026-05-01 - Implement Entity removal on player leave and DM control
+
+**Status:** Done
+
+**Task:**
+Automatically remove a player's character from the room when they leave, and give the DM manual removal control.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- internal/server/server.go
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Backend:** Added `RemoveEntity` method to `RoomManager`, ensuring the `currentTurn` is cleared if the active entity is removed.
+- **Backend:** Implemented `DELETE /rooms/{key}/entities/{id}` endpoint with DM token validation (optional for self-removal).
+- **Frontend:** Updated `handleLeaveConfirmed` in `RoomPage.tsx` to call the DELETE endpoint for players before they navigate away.
+- **Frontend:** Added a **"Remove"** button to the DM Action Panel, allowing DMs to manually kick players or delete creatures.
+- **Frontend:** Implemented a confirmation prompt for manual removal.
+
+**Verification:**
+- Verified that leaving as a player removes the entity from the server state.
+- Verified that the DM can remove any entity via the new button.
+- Ran `go build ./...` and `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-01 - Implement DM entity controls (Update, Damage, Heal, Turn)
+
+**Status:** Done
+
+**Task:**
+Provide the DM with the ability to select entities and manage their name, max health, current HP (damage/heal), and set the active turn.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- internal/server/server.go
+- client/src/pages/RoomPage.tsx
+- client/src/types/combat.ts
+
+**Summary:**
+- **Backend:** Added `UpdateEntity`, `ApplyDamage`, `ApplyHeal`, and `SetCurrentTurn` methods to `RoomManager`.
+- **Backend:** Implemented proper HP clamping (min 0, max MaxHealth) and Temp HP absorption during damage.
+- **Backend:** Registered `PATCH /rooms/{key}/entities/{id}`, `POST .../damage`, `POST .../heal`, and `PUT /rooms/{key}/turn` endpoints.
+- **Frontend:** Implemented entity selection logic in `RoomPage.tsx`.
+- **Frontend:** Added a **DM Action Panel** that appears when an entity is selected, featuring buttons for Damage, Heal, Set Turn, Rename, and Max HP.
+- **Frontend:** Added a generic action modal for entering numeric amounts or new names.
+- **Frontend:** Added a turn indicator in the header and visual highlighting (emerald ring) for the entity whose turn it currently is.
+
+**Verification:**
+- Verified backend logic for HP clamping and DM token validation.
+- Verified frontend selection and action triggering.
+- Ran `go build ./...` and `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- Selection and turn highlights are currently static; real-time updates via WebSockets will further enhance this.
+
+### 2026-05-01 - Implement Room deletion on DM leave
+
+**Status:** Done
+
+**Task:**
+End the combat session, kick all players, and delete the room when the DM leaves.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- internal/server/server.go
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Backend:** Added `DeleteRoom` method to `RoomManager` with DM token validation.
+- **Backend:** Implemented `DELETE /rooms/{key}` endpoint.
+- **Frontend:** Updated DM's leave confirmation to call the `DELETE` endpoint, effectively ending the session for everyone.
+- **Frontend:** Implemented a polling mechanism (every 3s) for players that checks if the room still exists.
+- **Frontend:** Players are automatically redirected to the landing page ("kicked") if the backend returns a 404 for their room.
+- **Code Quality:** Refactored `fetchRoom` with `useCallback` to resolve React hook dependency warnings.
+
+**Verification:**
+- Verified that deleting a room via `DELETE` makes subsequent `GET` requests return 404.
+- Verified frontend build and lint (passed).
+
+**Notes / Follow-ups:**
+- Polling is used as a temporary solution until WebSockets are fully implemented for real-time events.
+
+### 2026-05-01 - Implement DM authentication and role-based UI
+
+**Status:** Done
+
+**Task:**
+Restrict DM actions (like adding creatures) to the room owner and hide them from players.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Backend:** Updated `Room` struct to hide `DMToken` from public JSON serialization using `json:"-"`.
+- **Backend:** Updated `createRoomHandler` to return the `dmToken` only upon room creation via a new `CreateRoomResponse` wrapper.
+- **Backend:** Updated `addEntityHandler` to require a `Bearer <token>` in the `Authorization` header, validating it against the room's secret token.
+- **Frontend:** Added `dmToken` state to `RoomPage`.
+- **Frontend:** Updated `startRoom` to capture and store the secret token for the DM.
+- **Frontend:** Restricted the "+ Add Creature" button visibility to only appear if `dmToken` is present.
+- **Frontend:** Added the `Authorization` header to the `addCreature` API call.
+
+**Verification:**
+- Verified that players (joined via key) do not receive the `dmToken` in the API response.
+- Verified that the backend returns `401 Unauthorized` if the token is missing or incorrect when adding a creature.
+- Ran `go build ./...` and `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- Players are now effectively spectators with no control over room entities.
+
+### 2026-05-01 - Implement Player join room
+
+**Status:** Done
+
+**Task:**
+Enable players to join a room using a Room Key and Character Name.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- internal/server/server.go
+- client/src/pages/LandingPage.tsx
+- client/src/App.tsx
+- client/src/pages/RoomPage.tsx
+- client/src/types/combat.ts
+
+**Summary:**
+- Added `JoinPlayer` method to `RoomManager` on the backend, implementing unique character name logic (case-insensitive, appending numbers for duplicates).
+- Implemented `POST /rooms/join` endpoint.
+- Updated `LandingPage.tsx` to call the join endpoint and handle navigation.
+- Updated `App.tsx` to manage room and player state and pass them to `RoomPage`.
+- Updated `RoomPage.tsx` to highlight the "You" player card for the joined user.
+- Created `client/src/types/combat.ts` for shared TypeScript types to resolve linter errors.
+
+**Verification:**
+- Verified unique name logic: "Joe" becomes "Joe1" if "joe" already exists.
+- Ran `go build ./...` (passed).
+- Ran `npm run build` and `npm run lint` in `client` directory (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-01 - Fix missing fmt import in rooms.go
+
+**Status:** Done
+
+**Task:**
+Resolve Go compilation error `undefined: fmt` in `internal/server/rooms.go`.
+
+**Files changed:**
+- internal/server/rooms.go
+
+**Summary:**
+- Re-added the `fmt` import which was missing after previous refactoring.
+
+**Verification:**
+- Ran `go build ./...` (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-01 - Implement Creature creation
+
+**Status:** Done
+
+**Task:**
+Add a button to the room view that prompts for Creature Name and Max Health to create a new creature.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- internal/server/server.go
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- Added `AddEntity` method to `RoomManager` on the backend.
+- Implemented `POST /rooms/{key}/entities` and `GET /rooms/{key}` endpoints.
+- Added an "+ Add Creature" button to the Creatures column in `RoomPage.tsx`.
+- Implemented a modal to prompt for "Creature Name" and "Max Health".
+- The UI now fetches and displays the list of creatures (with HP) after adding a new one.
+- Improved `RoomPage` state to store the full `room` object for better data management.
+
+**Verification:**
+- Ran `npm run build` and `npm run lint` in `client` directory (passed).
+
+**Notes / Follow-ups:**
+- Players are filtered to the left column and enemies to the right.
+- Real-time updates via WebSockets are not yet implemented; the DM view currently refetches the room state manually after actions.
+
 ### 2026-05-01 - Fix "vite not found" in debug mode
 
 **Status:** Done

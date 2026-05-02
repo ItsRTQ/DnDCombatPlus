@@ -3,6 +3,8 @@ package server
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -29,10 +31,11 @@ type Entity struct {
 }
 
 type Room struct {
-	Key         string             `json:"roomKey"`
-	DMToken     string             `json:"dmToken"`
-	Entities    map[string]*Entity `json:"entities"`
-	CurrentTurn string             `json:"currentTurn"`
+	Key              string             `json:"roomKey"`
+	DMToken          string             `json:"-"`
+	Entities         map[string]*Entity `json:"entities"`
+	CurrentTurn      string             `json:"currentTurn"`
+	EndTurnRequested bool               `json:"endTurnRequested"`
 }
 
 type RoomManager struct {
@@ -77,6 +80,284 @@ func (rm *RoomManager) GetRoom(key string) (*Room, bool) {
 
 	room, ok := rm.rooms[key]
 	return room, ok
+}
+
+func (rm *RoomManager) DeleteRoom(key string, token string) error {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[key]
+	if !ok {
+		return fmt.Errorf("room not found")
+	}
+
+	if room.DMToken != token {
+		return fmt.Errorf("unauthorized")
+	}
+
+	delete(rm.rooms, key)
+	return nil
+}
+
+func (rm *RoomManager) AddEntity(roomKey string, name string, entityType EntityType, maxHealth int) (*Entity, error) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return nil, fmt.Errorf("room not found")
+	}
+
+	// Enforce cap of 7 per type
+	count := 0
+	for _, e := range room.Entities {
+		if e.Type == entityType {
+			count++
+		}
+	}
+	if count >= 7 {
+		return nil, fmt.Errorf("maximum of 7 %s entities reached", entityType)
+	}
+
+	id, err := generateRandomKey(8)
+	if err != nil {
+		return nil, err
+	}
+
+	entity := &Entity{
+		ID:        id,
+		Name:      name,
+		Type:      entityType,
+		MaxHealth: maxHealth,
+		Health:    maxHealth,
+		TempHP:    0,
+		Statuses:  []Status{},
+	}
+
+	room.Entities[id] = entity
+	return entity, nil
+}
+
+func (rm *RoomManager) JoinPlayer(roomKey string, name string) (*Room, *Entity, error) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return nil, nil, fmt.Errorf("room not found")
+	}
+
+	// Enforce cap of 7 players
+	playerCount := 0
+	for _, e := range room.Entities {
+		if e.Type == EntityPlayer {
+			playerCount++
+		}
+	}
+	if playerCount >= 7 {
+		return nil, nil, fmt.Errorf("room is full (maximum 7 players)")
+	}
+
+	// Clean up name
+	name = cleanName(name)
+	if name == "" {
+		name = "Player"
+	}
+	if len(name) > 24 {
+		name = name[:24]
+	}
+
+	// Make name unique
+	uniqueName := rm.makeUniqueName(room, name)
+
+	id, err := generateRandomKey(8)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	entity := &Entity{
+		ID:        id,
+		Name:      uniqueName,
+		Type:      EntityPlayer,
+		MaxHealth: 10, // Default for now
+		Health:    10,
+		TempHP:    0,
+		Statuses:  []Status{},
+	}
+
+	room.Entities[id] = entity
+	return room, entity, nil
+}
+
+func (rm *RoomManager) UpdateEntity(roomKey string, entityId string, name *string, maxHealth *int) (*Entity, error) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return nil, fmt.Errorf("room not found")
+	}
+
+	entity, ok := room.Entities[entityId]
+	if !ok {
+		return nil, fmt.Errorf("entity not found")
+	}
+
+	if name != nil {
+		entity.Name = *name
+	}
+
+	if maxHealth != nil && *maxHealth > 0 {
+		entity.MaxHealth = *maxHealth
+		if entity.Health > entity.MaxHealth {
+			entity.Health = entity.MaxHealth
+		}
+	}
+
+	return entity, nil
+}
+
+func (rm *RoomManager) ApplyDamage(roomKey string, entityId string, amount int) (*Entity, error) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return nil, fmt.Errorf("room not found")
+	}
+
+	entity, ok := room.Entities[entityId]
+	if !ok {
+		return nil, fmt.Errorf("entity not found")
+	}
+
+	// Apply to temp HP first
+	if entity.TempHP > 0 {
+		if amount <= entity.TempHP {
+			entity.TempHP -= amount
+			amount = 0
+		} else {
+			amount -= entity.TempHP
+			entity.TempHP = 0
+		}
+	}
+
+	entity.Health -= amount
+	if entity.Health < 0 {
+		entity.Health = 0
+	}
+
+	return entity, nil
+}
+
+func (rm *RoomManager) ApplyHeal(roomKey string, entityId string, amount int) (*Entity, error) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return nil, fmt.Errorf("room not found")
+	}
+
+	entity, ok := room.Entities[entityId]
+	if !ok {
+		return nil, fmt.Errorf("entity not found")
+	}
+
+	entity.Health += amount
+	if entity.Health > entity.MaxHealth {
+		entity.Health = entity.MaxHealth
+	}
+
+	return entity, nil
+}
+
+func (rm *RoomManager) SetCurrentTurn(roomKey string, entityId string) error {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return fmt.Errorf("room not found")
+	}
+
+	// entityId can be empty to clear turn
+	if entityId != "" {
+		if _, ok := room.Entities[entityId]; !ok {
+			return fmt.Errorf("entity not found")
+		}
+	}
+
+	room.CurrentTurn = entityId
+	room.EndTurnRequested = false // Reset request when turn changes
+	return nil
+}
+
+func (rm *RoomManager) RequestEndTurn(roomKey string, entityId string) error {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return fmt.Errorf("room not found")
+	}
+
+	if room.CurrentTurn != entityId {
+		return fmt.Errorf("not your turn")
+	}
+
+	room.EndTurnRequested = true
+	return nil
+}
+
+func (rm *RoomManager) RemoveEntity(roomKey string, entityId string) error {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return fmt.Errorf("room not found")
+	}
+
+	if _, ok := room.Entities[entityId]; !ok {
+		return fmt.Errorf("entity not found")
+	}
+
+	delete(room.Entities, entityId)
+
+	// Clear turn if the removed entity was taking its turn
+	if room.CurrentTurn == entityId {
+		room.CurrentTurn = ""
+	}
+
+	return nil
+}
+
+func (rm *RoomManager) makeUniqueName(room *Room, name string) string {
+	base := name
+	counter := 1
+	uniqueName := base
+
+	for {
+		found := false
+		for _, e := range room.Entities {
+			if strings.EqualFold(e.Name, uniqueName) {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return uniqueName
+		}
+
+		uniqueName = fmt.Sprintf("%s%d", base, counter)
+		counter++
+	}
+}
+
+func cleanName(s string) string {
+	return strings.TrimSpace(s)
 }
 
 func generateRandomKey(n int) (string, error) {
