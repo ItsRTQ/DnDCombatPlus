@@ -9,14 +9,19 @@ import (
 
 // New creates and configures the app HTTP server.
 func New(addr string) *http.Server {
+	hub := NewHub()
+	go hub.Run()
+
 	s := &Server{
 		roomManager: NewRoomManager(),
+		hub:         hub,
 	}
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /", homeHandler)
 	mux.HandleFunc("GET /health", healthHandler)
+	mux.HandleFunc("GET /ws/rooms/{key}", s.wsHandler)
 	mux.HandleFunc("POST /rooms", s.createRoomHandler)
 	mux.HandleFunc("POST /rooms/join", s.joinRoomHandler)
 	mux.HandleFunc("GET /rooms/{key}", s.getRoomHandler)

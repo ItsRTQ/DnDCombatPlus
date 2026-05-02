@@ -8,6 +8,7 @@ import (
 
 type Server struct {
 	roomManager *RoomManager
+	hub         *Hub
 }
 
 type AddEntityRequest struct {
@@ -45,6 +46,12 @@ type SetTurnRequest struct {
 	EntityID string `json:"entityId"`
 }
 
+func (s *Server) broadcastRoom(key string) {
+	if room, ok := s.roomManager.GetRoom(key); ok {
+		s.hub.BroadcastRoom(key, room)
+	}
+}
+
 func (s *Server) createRoomHandler(w http.ResponseWriter, r *http.Request) {
 	room, err := s.roomManager.CreateRoom()
 	if err != nil {
@@ -78,6 +85,12 @@ func (s *Server) deleteRoomHandler(w http.ResponseWriter, r *http.Request) {
 	if len(token) < 8 || token[:7] != "Bearer " {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
+	}
+
+	// Broadcast that the room is ending before deleting it
+	s.hub.broadcast <- broadcastMessage{
+		roomKey: key,
+		data:    []byte(`{"type":"room_ended"}`),
 	}
 
 	err := s.roomManager.DeleteRoom(key, token[7:])
@@ -161,6 +174,8 @@ func (s *Server) addEntityHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	s.broadcastRoom(key)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(entity)
@@ -183,6 +198,8 @@ func (s *Server) joinRoomHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+
+	s.broadcastRoom(req.RoomKey)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(JoinRoomResponse{
@@ -219,6 +236,8 @@ func (s *Server) updateEntityHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.broadcastRoom(key)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(entity)
 }
@@ -250,6 +269,8 @@ func (s *Server) damageEntityHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	s.broadcastRoom(key)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(entity)
@@ -283,6 +304,8 @@ func (s *Server) healEntityHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.broadcastRoom(key)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(entity)
 }
@@ -314,6 +337,8 @@ func (s *Server) setTurnHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.broadcastRoom(key)
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -339,6 +364,8 @@ func (s *Server) deleteEntityHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.broadcastRoom(key)
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -351,6 +378,8 @@ func (s *Server) requestEndTurnHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	s.broadcastRoom(key)
 
 	w.WriteHeader(http.StatusNoContent)
 }

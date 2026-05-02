@@ -49,16 +49,42 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
     [onLeave, currentPlayer]
   );
 
-  // Polling for players to detect when DM deletes room
+  // WebSocket for real-time updates
   useEffect(() => {
     if (!room?.roomKey) return;
 
-    const interval = setInterval(() => {
-      fetchRoom(room.roomKey);
-    }, 3000);
+    const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/rooms/${room.roomKey}`;
+    const socket = new WebSocket(wsUrl);
 
-    return () => clearInterval(interval);
-  }, [room?.roomKey, fetchRoom]);
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "room_ended") {
+          onLeave("This room has been ended by host");
+          return;
+        }
+
+        // Otherwise, it's a full room state update
+        setRoom(data);
+
+        // If we are a player, check if we've been removed
+        if (currentPlayer && !data.entities[currentPlayer.id]) {
+          onLeave("You have been kicked by host");
+        }
+      } catch (error) {
+        console.error("WebSocket message error:", error);
+      }
+    };
+
+    socket.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
+    return () => {
+      socket.close();
+    };
+  }, [room?.roomKey, currentPlayer, onLeave]);
 
   // Add Creature Modal State
   const [isAddCreatureModalOpen, setIsAddCreatureModalOpen] = useState(false);

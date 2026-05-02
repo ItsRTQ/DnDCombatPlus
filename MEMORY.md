@@ -145,6 +145,38 @@ Allow players to signal the end of their turn, notifying the DM.
 **Notes / Follow-ups:**
 - DM still has final authority to move to the next turn by selecting an entity and clicking "Set Turn".
 
+### 2026-05-01 - Implement Real-time updates with WebSockets
+
+**Status:** Done
+
+**Task:**
+Replace polling with WebSockets for instant state updates across all connected clients.
+
+**Files changed:**
+- internal/server/realtime.go
+- internal/server/handlers.go
+- internal/server/server.go
+- client/src/pages/RoomPage.tsx
+- go.mod
+- go.sum
+
+**Summary:**
+- **Backend:** Added `github.com/gorilla/websocket` dependency.
+- **Backend:** Created a `Hub` system in `internal/server/realtime.go` to manage room-based WebSocket connections and message broadcasting.
+- **Backend:** Registered `GET /ws/rooms/{key}` endpoint.
+- **Backend:** Updated all state-changing handlers (add, update, delete, damage, heal, turn, end-turn) to broadcast the updated room state to all clients in the room via the Hub.
+- **Backend:** Added a special `room_ended` event for when the DM deletes a room.
+- **Frontend:** Replaced the 3-second polling logic in `RoomPage.tsx` with a persistent WebSocket connection.
+- **Frontend:** Updated UI to dynamically react to incoming WebSocket messages, providing instant feedback for actions taken by the DM or other players.
+
+**Verification:**
+- Verified that actions taken in one client are reflected instantly in other connected clients.
+- Verified that kicking a player or ending a session triggers the correct notification instantly via WebSocket.
+- Ran `go build ./...` and `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- Actions are still sent via HTTP POST/PATCH for simplicity and to leverage existing token validation; WebSockets are currently used for one-way server-to-client broadcasts.
+
 ### 2026-05-01 - Implement Entity caps (Max 7 per side)
 
 **Status:** Done
