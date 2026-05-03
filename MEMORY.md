@@ -67,6 +67,85 @@ One sentence describing the requested task.
 
 ## Change Log
 
+### 2026-05-02 - Implement structured and colorized combat logs
+
+**Status:** Done
+
+**Task:**
+Colorize entity names in the combat log: green for players and red for enemies.
+
+**Files changed:**
+- internal/server/rooms.go
+- client/src/types/combat.ts
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Refactor:** Migrated the combat log from a simple string array to a structured `LogEntry` object array. This allows the backend to send the entity name and type separately from the event message.
+- **Backend:** Updated `RoomManager` to store and populate `LogEntry` objects, capturing the `EntityName` and `EntityType` at the moment of the event.
+- **Frontend:** Updated the log rendering logic to dynamically apply colors to entity names: **Emerald (Green)** for Characters and **Red** for Enemies.
+- **Visuals:** Maintained the "Character: <Name>" and "Enemy: <Name>" prefix formatting while adding high-contrast coloring for better readability during combat.
+
+**Verification:**
+- Verified backend builds and tests pass.
+- Verified frontend build passes and correctly renders structured log data.
+
+**Notes / Follow-ups:**
+- Existing string-based logs will be cleared upon server restart as the schema has changed.
+
+### 2026-05-02 - Move combat log to DM settings popup
+
+**Status:** Done
+
+**Task:**
+Move the combat log from a static section at the bottom of the page to a popup modal accessible via the DM settings menu.
+
+**Files changed:**
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **UI Refactor:** Removed the static "Combat Log" section from the bottom of the `RoomPage`.
+- **New Feature:** Added a "View Combat Log" button inside the DM's settings popup (gear menu).
+- **New Component:** Implemented a dedicated combat log modal with a header, scrollable content area (max 60vh), and a close button.
+- **UX:** The modal includes a dark backdrop with blur, entrance animations, and maintains the reverse-chronological order for easier reading of recent events.
+
+**Verification:**
+- Verified that the "View Combat Log" button correctly opens the new modal.
+- Verified that the log modal correctly displays data and can be closed via the "X", the "Close" button, or by clicking the backdrop.
+- Ran `npm run build` in `client` (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-02 - Extend combat logs to include enemy events
+
+**Status:** Done
+
+**Task:**
+Extend the DM combat log to record important events for both players and enemies, using appropriate labels ("Character" vs "Enemy").
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- client/src/types/combat.ts
+- client/src/pages/RoomPage.tsx
+- client/src/styles/index.css
+
+**Summary:**
+- **Backend:** Added `Logs` field to the `Room` struct and implemented a `addLog` helper that caps history at 50 entries.
+- **Backend:** Implemented `entityLogLabel` to distinguish between "Character" (player) and "Enemy" (enemy) in log messages.
+- **Backend:** Added logging triggers to `ApplyDamage`, `ApplyHeal`, `SetCurrentTurn`, and `RequestEndTurn`.
+- **Frontend:** Updated `Room` type to include `logs`.
+- **Frontend:** Implemented a new "Combat Log" section on the `RoomPage` visible only to the DM.
+- **Frontend:** Added custom scrollbar utility styles for the log display.
+- **Logic:** Logs update in real-time via the existing WebSocket/broadcast system.
+
+**Verification:**
+- Ran `go test ./...` (passed).
+- Ran `npm run build` in `client` directory (passed).
+
+**Notes / Follow-ups:**
+- Logs are strictly room-level and shared with all DM clients. Players currently do not see the combat log to keep their interface minimal.
+
 ### 2026-05-02 - Fix: Suppress "kicked" notification on voluntary leave
 
 **Status:** Done

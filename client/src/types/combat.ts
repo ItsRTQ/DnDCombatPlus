@@ -15,6 +15,12 @@ export interface Entity {
   statuses: Status[];
 }
 
+export interface LogEntry {
+  entityName: string;
+  entityType: EntityType;
+  message: string;
+}
+
 export interface Room {
   roomKey: string;
   entities: Record<string, Entity>;
@@ -22,4 +28,5 @@ export interface Room {
   hidePlayerHP: boolean;
   hideEnemyHP: boolean;
   simpleView: boolean;
+  logs: LogEntry[];
 }

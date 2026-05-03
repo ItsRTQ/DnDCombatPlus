@@ -30,6 +30,12 @@ type Entity struct {
 	Statuses  []Status   `json:"statuses"`
 }
 
+type LogEntry struct {
+	EntityName string     `json:"entityName"`
+	EntityType EntityType `json:"entityType"`
+	Message    string     `json:"message"`
+}
+
 type Room struct {
 	Key          string             `json:"roomKey"`
 	DMToken      string             `json:"-"`
@@ -38,6 +44,7 @@ type Room struct {
 	HidePlayerHP bool               `json:"hidePlayerHP"`
 	HideEnemyHP  bool               `json:"hideEnemyHP"`
 	SimpleView   bool               `json:"simpleView"`
+	Logs         []LogEntry         `json:"logs"`
 }
 
 type RoomManager struct {
@@ -73,10 +80,29 @@ func (rm *RoomManager) CreateRoom() (*Room, error) {
 		HidePlayerHP: false,
 		HideEnemyHP:  false,
 		SimpleView:   false,
+		Logs:         []LogEntry{},
 	}
 
 	rm.rooms[key] = room
 	return room, nil
+}
+
+func (rm *RoomManager) addLog(room *Room, entity *Entity, message string) {
+	room.Logs = append(room.Logs, LogEntry{
+		EntityName: entity.Name,
+		EntityType: entity.Type,
+		Message:    message,
+	})
+	if len(room.Logs) > 50 {
+		room.Logs = room.Logs[len(room.Logs)-50:]
+	}
+}
+
+func entityLogLabel(entityType EntityType) string {
+	if entityType == EntityEnemy {
+		return "Enemy"
+	}
+	return "Character"
 }
 
 func (rm *RoomManager) ToggleSettings(roomKey string, hidePlayerHP *bool, hideEnemyHP *bool, simpleView *bool) error {
@@ -281,6 +307,8 @@ func (rm *RoomManager) ApplyDamage(roomKey string, entityId string, amount int) 
 		entity.Health = 0
 	}
 
+	rm.addLog(room, entity, fmt.Sprintf("Took %d damage", amount))
+
 	return entity, nil
 }
 
@@ -304,6 +332,8 @@ func (rm *RoomManager) ApplyHeal(roomKey string, entityId string, amount int) (*
 		entity.Health = entity.MaxHealth
 	}
 
+	rm.addLog(room, entity, fmt.Sprintf("Heal %d", amount))
+
 	return entity, nil
 }
 
@@ -317,14 +347,25 @@ func (rm *RoomManager) SetCurrentTurn(roomKey string, entityId string) error {
 		return fmt.Errorf("room not found")
 	}
 
-	// entityId can be empty to clear turn
-	if entityId != "" {
-		if _, ok := room.Entities[entityId]; !ok {
-			return fmt.Errorf("entity not found")
+	// Log turn end for previous entity
+	if room.CurrentTurn != "" {
+		if prev, ok := room.Entities[room.CurrentTurn]; ok {
+			rm.addLog(room, prev, "turn end")
 		}
 	}
 
-	room.CurrentTurn = entityId
+	// entityId can be empty to clear turn
+	if entityId != "" {
+		entity, ok := room.Entities[entityId]
+		if !ok {
+			return fmt.Errorf("entity not found")
+		}
+		room.CurrentTurn = entityId
+		rm.addLog(room, entity, "turn start")
+	} else {
+		room.CurrentTurn = ""
+	}
+
 	return nil
 }
 
@@ -340,6 +381,10 @@ func (rm *RoomManager) RequestEndTurn(roomKey string, entityId string) error {
 
 	if room.CurrentTurn != entityId {
 		return fmt.Errorf("not your turn")
+	}
+
+	if entity, ok := room.Entities[entityId]; ok {
+		rm.addLog(room, entity, "turn end")
 	}
 
 	room.CurrentTurn = "" // Directly clear the turn
