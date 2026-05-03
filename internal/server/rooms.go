@@ -31,10 +31,13 @@ type Entity struct {
 }
 
 type Room struct {
-	Key         string             `json:"roomKey"`
-	DMToken     string             `json:"-"`
-	Entities    map[string]*Entity `json:"entities"`
-	CurrentTurn string             `json:"currentTurn"`
+	Key          string             `json:"roomKey"`
+	DMToken      string             `json:"-"`
+	Entities     map[string]*Entity `json:"entities"`
+	CurrentTurn  string             `json:"currentTurn"`
+	HidePlayerHP bool               `json:"hidePlayerHP"`
+	HideEnemyHP  bool               `json:"hideEnemyHP"`
+	SimpleView   bool               `json:"simpleView"`
 }
 
 type RoomManager struct {
@@ -63,17 +66,44 @@ func (rm *RoomManager) CreateRoom() (*Room, error) {
 	defer rm.mu.Unlock()
 
 	room := &Room{
-		Key:         key,
-		DMToken:     token,
-		Entities:    make(map[string]*Entity),
-		CurrentTurn: "",
+		Key:          key,
+		DMToken:      token,
+		Entities:     make(map[string]*Entity),
+		CurrentTurn:  "",
+		HidePlayerHP: false,
+		HideEnemyHP:  false,
+		SimpleView:   false,
 	}
 
 	rm.rooms[key] = room
 	return room, nil
 }
 
+func (rm *RoomManager) ToggleSettings(roomKey string, hidePlayerHP *bool, hideEnemyHP *bool, simpleView *bool) error {
+	roomKey = strings.ToLower(roomKey)
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return fmt.Errorf("room not found")
+	}
+
+	if hidePlayerHP != nil {
+		room.HidePlayerHP = *hidePlayerHP
+	}
+	if hideEnemyHP != nil {
+		room.HideEnemyHP = *hideEnemyHP
+	}
+	if simpleView != nil {
+		room.SimpleView = *simpleView
+	}
+
+	return nil
+}
+
 func (rm *RoomManager) GetRoom(key string) (*Room, bool) {
+	key = strings.ToLower(key)
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
@@ -82,6 +112,7 @@ func (rm *RoomManager) GetRoom(key string) (*Room, bool) {
 }
 
 func (rm *RoomManager) DeleteRoom(key string, token string) error {
+	key = strings.ToLower(key)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -99,6 +130,7 @@ func (rm *RoomManager) DeleteRoom(key string, token string) error {
 }
 
 func (rm *RoomManager) AddEntity(roomKey string, name string, entityType EntityType, maxHealth int) (*Entity, error) {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -138,6 +170,7 @@ func (rm *RoomManager) AddEntity(roomKey string, name string, entityType EntityT
 }
 
 func (rm *RoomManager) JoinPlayer(roomKey string, name string) (*Room, *Entity, error) {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -189,6 +222,7 @@ func (rm *RoomManager) JoinPlayer(roomKey string, name string) (*Room, *Entity, 
 }
 
 func (rm *RoomManager) UpdateEntity(roomKey string, entityId string, name *string, maxHealth *int) (*Entity, error) {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -217,6 +251,7 @@ func (rm *RoomManager) UpdateEntity(roomKey string, entityId string, name *strin
 }
 
 func (rm *RoomManager) ApplyDamage(roomKey string, entityId string, amount int) (*Entity, error) {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -250,6 +285,7 @@ func (rm *RoomManager) ApplyDamage(roomKey string, entityId string, amount int) 
 }
 
 func (rm *RoomManager) ApplyHeal(roomKey string, entityId string, amount int) (*Entity, error) {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -272,6 +308,7 @@ func (rm *RoomManager) ApplyHeal(roomKey string, entityId string, amount int) (*
 }
 
 func (rm *RoomManager) SetCurrentTurn(roomKey string, entityId string) error {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -292,6 +329,7 @@ func (rm *RoomManager) SetCurrentTurn(roomKey string, entityId string) error {
 }
 
 func (rm *RoomManager) RequestEndTurn(roomKey string, entityId string) error {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -309,6 +347,7 @@ func (rm *RoomManager) RequestEndTurn(roomKey string, entityId string) error {
 }
 
 func (rm *RoomManager) RemoveEntity(roomKey string, entityId string) error {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 

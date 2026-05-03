@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -128,6 +129,7 @@ func (h *Hub) Run() {
 }
 
 func (h *Hub) BroadcastRoom(roomKey string, room *Room) {
+	roomKey = strings.ToLower(roomKey)
 	data, err := json.Marshal(room)
 	if err != nil {
 		log.Printf("error marshaling room state: %v", err)
@@ -137,7 +139,7 @@ func (h *Hub) BroadcastRoom(roomKey string, room *Room) {
 }
 
 func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
-	roomKey := r.PathValue("key")
+	roomKey := strings.ToLower(r.PathValue("key"))
 	if roomKey == "" {
 		http.Error(w, "missing room key", http.StatusBadRequest)
 		return
@@ -156,6 +158,14 @@ func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
 		send:    make(chan []byte, 256),
 	}
 	s.hub.register <- client
+
+	// Send initial room state immediately
+	if room, ok := s.roomManager.GetRoom(roomKey); ok {
+		data, err := json.Marshal(room)
+		if err == nil {
+			client.send <- data
+		}
+	}
 
 	go client.writePump()
 	go client.readPump()

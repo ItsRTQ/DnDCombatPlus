@@ -19,4 +19,7 @@ export interface Room {
   roomKey: string;
   entities: Record<string, Entity>;
   currentTurn: string;
+  hidePlayerHP: boolean;
+  hideEnemyHP: boolean;
+  simpleView: boolean;
 }

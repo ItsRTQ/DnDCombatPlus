@@ -33,6 +33,7 @@ func New(addr string) *http.Server {
 	mux.HandleFunc("POST /rooms/{key}/entities/{id}/damage", s.damageEntityHandler)
 	mux.HandleFunc("POST /rooms/{key}/entities/{id}/heal", s.healEntityHandler)
 	mux.HandleFunc("PUT /rooms/{key}/turn", s.setTurnHandler)
+	mux.HandleFunc("PATCH /rooms/{key}/settings", s.toggleSettingsHandler)
 
 	// Simple CORS middleware
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
