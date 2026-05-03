@@ -67,6 +67,26 @@ One sentence describing the requested task.
 
 ## Change Log
 
+### 2026-05-03 - Updated app favicon to favicon.png
+
+**Status:** Done
+
+**Task:**
+Make `favicon.png` the current app favicon.
+
+**Files changed:**
+- client/index.html
+
+**Summary:**
+- Updated the favicon link in `client/index.html` to point to `/favicon.png` with type `image/png`.
+
+**Verification:**
+- `npm run build` passed.
+- Manually verified the file exists in `client/public`.
+
+**Notes / Follow-ups:**
+- None.
+
 ### 2026-05-03 - Fix: Resolved route conflict panic in unified Docker
 
 **Status:** Done
