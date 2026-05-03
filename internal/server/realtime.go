@@ -19,10 +19,19 @@ var upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	hub     *Hub
-	roomKey string
-	conn    *websocket.Conn
-	send    chan []byte
+	hub      *Hub
+	server   *Server
+	roomKey  string
+	entityId string
+	isDM     bool
+	conn     *websocket.Conn
+	send     chan []byte
+}
+
+type ClientMessage struct {
+	Type     string `json:"type"`
+	EntityID string `json:"entityId"`
+	Sprite   string `json:"sprite"`
 }
 
 func (c *Client) readPump() {
@@ -31,15 +40,38 @@ func (c *Client) readPump() {
 		c.conn.Close()
 	}()
 	for {
-		_, _, err := c.conn.ReadMessage()
+		_, p, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
 			break
 		}
-		// For now, we only broadcast FROM server TO client.
-		// Player actions like "End Turn" are still handled via HTTP POST for simplicity and auth.
+
+		var msg ClientMessage
+		if err := json.Unmarshal(p, &msg); err != nil {
+			continue
+		}
+
+		if msg.Type == "set_sprite" && c.isDM {
+			_, err := c.server.roomManager.SetEntitySprite(c.roomKey, msg.EntityID, msg.Sprite)
+			if err == nil {
+				c.server.broadcastRoom(c.roomKey)
+			}
+			continue
+		}
+
+		if msg.Type == "cycle_sprite" || msg.Type == "cycle_player_sprite" {
+			// DM can cycle any entity, player can only cycle their own
+			canCycle := c.isDM || (c.entityId != "" && c.entityId == msg.EntityID)
+			
+			if canCycle {
+				_, err := c.server.roomManager.CycleEntitySprite(c.roomKey, msg.EntityID)
+				if err == nil {
+					c.server.broadcastRoom(c.roomKey)
+				}
+			}
+		}
 	}
 }
 
@@ -145,6 +177,17 @@ func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	entityId := r.URL.Query().Get("entityId")
+	token := r.URL.Query().Get("token")
+
+	room, ok := s.roomManager.GetRoom(roomKey)
+	if !ok {
+		http.Error(w, "room not found", http.StatusNotFound)
+		return
+	}
+
+	isDM := token != "" && token == room.DMToken
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("error upgrading connection: %v", err)
@@ -152,19 +195,20 @@ func (s *Server) wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := &Client{
-		hub:     s.hub,
-		roomKey: roomKey,
-		conn:    conn,
-		send:    make(chan []byte, 256),
+		hub:      s.hub,
+		server:   s,
+		roomKey:  roomKey,
+		entityId: entityId,
+		isDM:     isDM,
+		conn:     conn,
+		send:     make(chan []byte, 256),
 	}
 	s.hub.register <- client
 
 	// Send initial room state immediately
-	if room, ok := s.roomManager.GetRoom(roomKey); ok {
-		data, err := json.Marshal(room)
-		if err == nil {
-			client.send <- data
-		}
+	data, err := json.Marshal(room)
+	if err == nil {
+		client.send <- data
 	}
 
 	go client.writePump()

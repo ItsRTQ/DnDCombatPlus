@@ -67,6 +67,96 @@ One sentence describing the requested task.
 
 ## Change Log
 
+### 2026-05-03 - Replaced DM sprite cycling with selection menu
+
+**Status:** Done
+
+**Task:**
+Replace DM sprite cycling with a selection menu popup for both players and enemies.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/realtime.go
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Backend:** Added `SetEntitySprite` to `RoomManager` for direct sprite assignment.
+- **Realtime:** Updated WebSocket `readPump` and `ClientMessage` to support `set_sprite` messages (DM-only).
+- **Frontend:** Implemented a new `Sprite Selection Modal` in `RoomPage.tsx` with visual previews of all available sprites.
+- **Frontend:** Updated DM Action Panel: renamed "Cycle Sprite" to "Select Sprite" and configured it to open the selection modal.
+- **Visuals:** Modal displays sprites in a 3-column grid with pixel-perfect previews and name labels.
+
+**Verification:**
+- `go test ./...` passed.
+- `npm run build` passed.
+- `npm run lint` passed.
+
+**Notes / Follow-ups:**
+- Players still use the cycle interaction for their own characters as requested in previous tasks.
+- Selection logic correctly filters available sprites based on whether the entity is a player or an enemy.
+
+### 2026-05-03 - Expanded sprite cycling for players and enemies
+
+**Status:** Done
+
+**Task:**
+Add `female_mage` to player sprite cycle and implement DM-controlled sprite cycling for enemies (`bandit`, `goblin`, `red_dragon`).
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/realtime.go
+- client/src/components/EntityCard.tsx
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Backend:** Refactored `CyclePlayerSprite` to `CycleEntitySprite` to handle both player and enemy sprite sets.
+- **Backend:** Added `female_mage` to player sprites and `bandit`, `goblin`, `red_dragon` to enemy sprites.
+- **Realtime:** Updated WebSocket `readPump` to allow DMs to cycle any entity's sprite, while players remain restricted to their own.
+- **Realtime:** Updated `wsHandler` to validate DM tokens and set an `isDM` flag on the client.
+- **Frontend:** Updated `EntityCard` to import and map all new sprites (including handling the `femaile_mage` filename typo).
+- **Frontend:** Added a "Cycle Sprite" button to the DM Action Panel for the selected entity.
+- **Frontend:** Updated WebSocket connection to include the DM token for authentication.
+
+**Verification:**
+- `go test ./...` passed.
+- `npm run build` passed.
+- `npm run lint` passed.
+
+**Notes / Follow-ups:**
+- Enemy sprites do not flip horizontally (unlike player sprites) to maintain their original orientation.
+- DM can cycle sprites for both players and enemies via the control panel.
+
+### 2026-05-03 - Added player character sprite cycling
+
+**Status:** Done
+
+**Task:**
+Players can now cycle through available character sprites (knight, rogue) by clicking their own character icon.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/realtime.go
+- client/src/types/combat.ts
+- client/src/components/EntityCard.tsx
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- Added `Sprite` field to `Entity` struct in backend.
+- Implemented `CyclePlayerSprite` in `RoomManager`.
+- Updated WebSocket `readPump` to handle `cycle_player_sprite` messages from clients with validation.
+- Updated frontend `Entity` type to include `sprite`.
+- Enhanced `EntityCard` to support `knight` and `rouge` sprite sets and handle owner clicks.
+- Updated `RoomPage` to establish WebSocket connections with `entityId` for validation and handle sprite cycling requests.
+
+**Verification:**
+- `go test ./...` passed.
+- `npm run build` passed.
+- `npm run lint` passed.
+
+**Notes / Follow-ups:**
+- Internally used "rouge" to match the existing directory name in `client/src/assets/sprites/players/rouge`.
+- Sprite cycling is only available for players on their own entity.
+
 ### 2026-05-02 - Implement structured and colorized combat logs
 
 **Status:** Done
