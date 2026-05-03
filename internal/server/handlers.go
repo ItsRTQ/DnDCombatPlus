@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 type Server struct {
@@ -46,6 +47,12 @@ type SetTurnRequest struct {
 	EntityID string `json:"entityId"`
 }
 
+type ToggleSettingsRequest struct {
+	HidePlayerHP *bool `json:"hidePlayerHP"`
+	HideEnemyHP  *bool `json:"hideEnemyHP"`
+	SimpleView   *bool `json:"simpleView"`
+}
+
 func (s *Server) broadcastRoom(key string) {
 	if room, ok := s.roomManager.GetRoom(key); ok {
 		s.hub.BroadcastRoom(key, room)
@@ -68,7 +75,7 @@ func (s *Server) createRoomHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getRoomHandler(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+	key := strings.ToLower(r.PathValue("key"))
 	room, ok := s.roomManager.GetRoom(key)
 	if !ok {
 		http.Error(w, "room not found", http.StatusNotFound)
@@ -80,7 +87,7 @@ func (s *Server) getRoomHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteRoomHandler(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+	key := strings.ToLower(r.PathValue("key"))
 	token := r.Header.Get("Authorization")
 	if len(token) < 8 || token[:7] != "Bearer " {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -107,7 +114,7 @@ func (s *Server) deleteRoomHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) addEntityHandler(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+	key := strings.ToLower(r.PathValue("key"))
 
 	// Validate DM token
 	room, ok := s.roomManager.GetRoom(key)
@@ -193,13 +200,14 @@ func (s *Server) joinRoomHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	room, player, err := s.roomManager.JoinPlayer(req.RoomKey, req.CharacterName)
+	roomKey := strings.ToLower(req.RoomKey)
+	room, player, err := s.roomManager.JoinPlayer(roomKey, req.CharacterName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	s.broadcastRoom(req.RoomKey)
+	s.broadcastRoom(roomKey)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(JoinRoomResponse{
@@ -209,7 +217,7 @@ func (s *Server) joinRoomHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) updateEntityHandler(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+	key := strings.ToLower(r.PathValue("key"))
 	id := r.PathValue("id")
 
 	room, ok := s.roomManager.GetRoom(key)
@@ -243,7 +251,7 @@ func (s *Server) updateEntityHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) damageEntityHandler(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+	key := strings.ToLower(r.PathValue("key"))
 	id := r.PathValue("id")
 
 	room, ok := s.roomManager.GetRoom(key)
@@ -277,7 +285,7 @@ func (s *Server) damageEntityHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) healEntityHandler(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+	key := strings.ToLower(r.PathValue("key"))
 	id := r.PathValue("id")
 
 	room, ok := s.roomManager.GetRoom(key)
@@ -311,7 +319,7 @@ func (s *Server) healEntityHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) setTurnHandler(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+	key := strings.ToLower(r.PathValue("key"))
 
 	room, ok := s.roomManager.GetRoom(key)
 	if !ok {
@@ -343,7 +351,7 @@ func (s *Server) setTurnHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteEntityHandler(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+	key := strings.ToLower(r.PathValue("key"))
 	id := r.PathValue("id")
 
 	// If DM token is provided, they can delete any entity.
@@ -370,12 +378,44 @@ func (s *Server) deleteEntityHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) requestEndTurnHandler(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+	key := strings.ToLower(r.PathValue("key"))
 	id := r.PathValue("id")
 
 	err := s.roomManager.RequestEndTurn(key, id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	s.broadcastRoom(key)
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) toggleSettingsHandler(w http.ResponseWriter, r *http.Request) {
+	key := strings.ToLower(r.PathValue("key"))
+
+	room, ok := s.roomManager.GetRoom(key)
+	if !ok {
+		http.Error(w, "room not found", http.StatusNotFound)
+		return
+	}
+
+	token := r.Header.Get("Authorization")
+	if token != "Bearer "+room.DMToken {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req ToggleSettingsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	err := s.roomManager.ToggleSettings(key, req.HidePlayerHP, req.HideEnemyHP, req.SimpleView)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

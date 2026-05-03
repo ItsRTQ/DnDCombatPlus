@@ -67,6 +67,415 @@ One sentence describing the requested task.
 
 ## Change Log
 
+### 2026-05-02 - Implement structured and colorized combat logs
+
+**Status:** Done
+
+**Task:**
+Colorize entity names in the combat log: green for players and red for enemies.
+
+**Files changed:**
+- internal/server/rooms.go
+- client/src/types/combat.ts
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Refactor:** Migrated the combat log from a simple string array to a structured `LogEntry` object array. This allows the backend to send the entity name and type separately from the event message.
+- **Backend:** Updated `RoomManager` to store and populate `LogEntry` objects, capturing the `EntityName` and `EntityType` at the moment of the event.
+- **Frontend:** Updated the log rendering logic to dynamically apply colors to entity names: **Emerald (Green)** for Characters and **Red** for Enemies.
+- **Visuals:** Maintained the "Character: <Name>" and "Enemy: <Name>" prefix formatting while adding high-contrast coloring for better readability during combat.
+
+**Verification:**
+- Verified backend builds and tests pass.
+- Verified frontend build passes and correctly renders structured log data.
+
+**Notes / Follow-ups:**
+- Existing string-based logs will be cleared upon server restart as the schema has changed.
+
+### 2026-05-02 - Move combat log to DM settings popup
+
+**Status:** Done
+
+**Task:**
+Move the combat log from a static section at the bottom of the page to a popup modal accessible via the DM settings menu.
+
+**Files changed:**
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **UI Refactor:** Removed the static "Combat Log" section from the bottom of the `RoomPage`.
+- **New Feature:** Added a "View Combat Log" button inside the DM's settings popup (gear menu).
+- **New Component:** Implemented a dedicated combat log modal with a header, scrollable content area (max 60vh), and a close button.
+- **UX:** The modal includes a dark backdrop with blur, entrance animations, and maintains the reverse-chronological order for easier reading of recent events.
+
+**Verification:**
+- Verified that the "View Combat Log" button correctly opens the new modal.
+- Verified that the log modal correctly displays data and can be closed via the "X", the "Close" button, or by clicking the backdrop.
+- Ran `npm run build` in `client` (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-02 - Extend combat logs to include enemy events
+
+**Status:** Done
+
+**Task:**
+Extend the DM combat log to record important events for both players and enemies, using appropriate labels ("Character" vs "Enemy").
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- client/src/types/combat.ts
+- client/src/pages/RoomPage.tsx
+- client/src/styles/index.css
+
+**Summary:**
+- **Backend:** Added `Logs` field to the `Room` struct and implemented a `addLog` helper that caps history at 50 entries.
+- **Backend:** Implemented `entityLogLabel` to distinguish between "Character" (player) and "Enemy" (enemy) in log messages.
+- **Backend:** Added logging triggers to `ApplyDamage`, `ApplyHeal`, `SetCurrentTurn`, and `RequestEndTurn`.
+- **Frontend:** Updated `Room` type to include `logs`.
+- **Frontend:** Implemented a new "Combat Log" section on the `RoomPage` visible only to the DM.
+- **Frontend:** Added custom scrollbar utility styles for the log display.
+- **Logic:** Logs update in real-time via the existing WebSocket/broadcast system.
+
+**Verification:**
+- Ran `go test ./...` (passed).
+- Ran `npm run build` in `client` directory (passed).
+
+**Notes / Follow-ups:**
+- Logs are strictly room-level and shared with all DM clients. Players currently do not see the combat log to keep their interface minimal.
+
+### 2026-05-02 - Fix: Suppress "kicked" notification on voluntary leave
+
+**Status:** Done
+
+**Task:**
+Prevent the "You have been kicked by host" message from appearing when a player intentionally leaves the room.
+
+**Files changed:**
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **UI Logic:** Added an `isLeaving` state flag to `RoomPage.tsx`.
+- **Bug Fix:** When a player clicks "Leave Room", `isLeaving` is set to true. This suppresses the "kicked" notification that was previously triggered when the player's entity was removed from the server state just before the local navigation completed.
+- **Reliability:** Ensures that involuntary removals (actual kicks by DM) still display the correct message, while intentional departures remain silent as expected.
+
+**Verification:**
+- Verified with `npm run build` (passed).
+- Logic verified: the notification conditional now checks `!isLeaving` before firing.
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-02 - Final Fix: Comprehensive Room Sync & Key Normalization
+
+**Status:** Done
+
+**Task:**
+Resolve the 'Simple View' toggle sync issue where only some players would see the change.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- internal/server/realtime.go
+
+**Summary:**
+- **Robust Normalization:** Added `strings.ToLower()` normalization to EVERY `RoomManager` method in `rooms.go` (GetRoom, JoinPlayer, ToggleSettings, etc.) to prevent casing mismatches.
+- **Handler Security:** Updated all HTTP handlers to normalize room keys before passing them to the manager.
+- **WebSocket Optimization:** Updated the WebSocket connection logic in `realtime.go` to immediately send the current room state to a client as soon as they connect. This ensures even late-joiners or reconnected players are instantly synced with the current `SimpleView` and HP visibility settings.
+- **Verification:** Verified backend and frontend builds pass.
+
+**Notes / Follow-ups:**
+- This provides a multi-layered defense against sync issues, ensuring all connected clients are grouped in the same WebSocket room and receive the same state.
+
+### 2026-05-02 - Fix Hit animation looping bug
+
+**Status:** Done
+
+**Task:**
+Resolve the issue where the knight's `hit` animation would loop indefinitely instead of returning to idle.
+
+**Files changed:**
+- client/src/components/EntityCard.tsx
+
+**Summary:**
+- **Bug Fix:** Switched to using `useRef` for tracking `prevHealth`. Previously, updating state inside the health-check effect caused a re-render that triggered the effect's cleanup, immediately clearing the "return to idle" timeout.
+- **Logic:** The `hit` animation now correctly plays for its 800ms duration and then reverts to the appropriate idle or hurt state.
+- **Verification:** Ran `npm run build` (passed).
+
+**Notes / Follow-ups:**
+## Change Log
+
+### 2026-05-02 - Normalize room keys to lowercase for sync reliability
+
+**Status:** Done
+
+**Task:**
+Fix the bug where only some players would see the 'Simple View' toggle by ensuring consistent room key casing across all backend handlers and the WebSocket hub.
+
+**Files changed:**
+- internal/server/handlers.go
+- internal/server/realtime.go
+
+**Summary:**
+- **Normalization:** Added `strings.ToLower()` to all room key lookups in HTTP handlers (API) and the WebSocket handler.
+- **Hub Update:** Ensured the `Hub` also normalizes keys before broadcasting, preventing mismatches caused by inconsistent casing (e.g., "ABC123" vs "abc123").
+- **Reliability:** This ensures that all connected clients for a single room are grouped correctly in the WebSocket hub, regardless of how the key was entered.
+- **Verification:** Verified backend and frontend builds pass.
+
+**Notes / Follow-ups:**
+- This likely resolves the issue where 2nd and 3rd players weren't receiving the 'Simple View' update because they were connected via a casing-mismatched key.
+
+### 2026-05-02 - Fix Simple View and refactor EntityCard
+
+**Status:** Done
+
+**Task:**
+Fix the bug where not all players were switching to simple view and refactor the component for better stability.
+
+**Files changed:**
+- internal/server/handlers.go
+- client/src/components/EntityCard.tsx
+
+**Summary:**
+- **Refactor:** Unified the `EntityCard` component to use a single return statement with conditional rendering. This fixes React reconciliation issues when switching between Standard and Simple views.
+- **Visuals:** Standardized the knight sprite flip and pixel-perfect rendering across both views.
+- **Bug Fix:** Fixed a backend typo in `handlers.go` where entity names were being formatted with an extra space (`% d` -> `%d`).
+- **Logic:** Ensured all animation states (damage, healing, idle) are shared correctly between views.
+
+**Verification:**
+- Verified backend and frontend builds pass (`go build` and `npm run build`).
+
+**Notes / Follow-ups:**
+- The single-return refactor ensures that the internal animation state (like `frameIndex`) is preserved when the DM toggles the view mode.
+
+### 2026-05-02 - Implement 'Simple View' toggle
+
+**Status:** Done
+
+**Task:**
+Add a 'Simple View' toggle to the DM settings popup that switches the room display to a minimal mode showing only animations/sprites and names.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- client/src/types/combat.ts
+- client/src/components/EntityCard.tsx
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Backend:** Added `SimpleView` flag to `Room` state and updated settings toggle logic.
+- **Frontend:** Added "Simple View" toggle to the DM's settings popup.
+- **UI Logic:** Implemented a new minimal layout for the room when `SimpleView` is enabled.
+- **Component Update:** Updated `EntityCard` with a `simple` prop. In simple mode, it displays larger sprites (24px -> 24px container? no, increased to h-24 for better visibility) and hides most card UI elements (HP bars, status text, etc., though a minimal HP bar was kept for utility).
+- **Animations:** Maintained all damage and healing animations/effects in simple mode.
+
+**Verification:**
+- Verified backend and frontend builds pass (`go build` and `npm run build`).
+
+**Notes / Follow-ups:**
+- In Simple View, entities that lack animations (currently all enemies) default to showing their name in a styled badge.
+
+### 2026-05-02 - Refactor DM HP toggles into settings popup
+
+**Status:** Done
+
+**Task:**
+Move the HP visibility toggles into a popup menu accessible via a gear icon button in the DM's header.
+
+**Files changed:**
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **UI Refactor:** Removed the direct "Player HP" and "Enemy HP" buttons from the header.
+- **New Component:** Added a gear icon button that toggles a new settings popup menu.
+- **Visuals:** The popup uses a dark glassmorphism style (`backdrop-blur-2xl`, `bg-zinc-900/95`) and includes a backdrop click-to-close feature.
+- **UX:** Grouped the HP visibility toggles under a "Visibility Settings" heading within the popup for a cleaner interface.
+
+**Verification:**
+- Verified that the gear button correctly opens/closes the menu.
+- Verified that the toggles within the menu still correctly update the room state and player view.
+- Ran `npm run build` in `client` (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-02 - Add healing feedback effects (Glow, Scale, Rays)
+
+**Status:** Done
+
+**Task:**
+Make entities glow green and emit rising green rays when healed, accompanied by a temporary scale-up effect.
+
+**Files changed:**
+- client/src/components/EntityCard.tsx
+
+**Summary:**
+- **Visual Feedback:** Added a comprehensive healing effect to the `EntityCard` component.
+- **Glow & Scale:** Implemented a `heal-pulse` CSS animation that scales the card to 103% and applies a green background pulse (`rgba(16, 185, 129, 0.2)`).
+- **Rising Rays:** Added an overlay of 6 rising "green rays" using CSS animations and gradients that float upwards behind the entity content.
+- **Trigger Logic:** The effects are triggered automatically for 1 second whenever an entity's health increases.
+- **Verification:** Ran `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- Used a 1-second duration for the healing effect to distinguish it from the shorter 0.4s damage effect.
+
+### 2026-05-02 - Add shake and pulse effects on damage
+
+**Status:** Done
+
+**Task:**
+Make entities shake and pulse quickly when they take damage, then return to normal.
+
+**Files changed:**
+- client/src/components/EntityCard.tsx
+
+**Summary:**
+- **Visual Feedback:** Added a new `animate-shake-pulse` CSS animation to the `EntityCard` component.
+- **Shake Animation:** Implemented a quick horizontal shake (`translateX` and `rotate`) that plays twice in 0.4s.
+- **Pulse Animation:** Added a brief red background pulse (`rgba(239, 68, 68, 0.2)`) that fades in and out.
+- **Trigger Logic:** The effects are applied automatically whenever an entity's health decreases, synced with the existing "hit" sprite animation.
+- **Verification:** Ran `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-02 - Implement HP visibility toggles for DM
+
+**Status:** Done
+
+**Task:**
+Add settings for the DM to hide/show health points (HP) for players and enemies from the player's view.
+
+**Files changed:**
+- internal/server/rooms.go
+- internal/server/handlers.go
+- internal/server/server.go
+- client/src/types/combat.ts
+- client/src/components/EntityCard.tsx
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Backend:** Added `HidePlayerHP` and `HideEnemyHP` flags to the `Room` struct.
+- **Backend:** Implemented `ToggleSettings` method and `PATCH /rooms/{key}/settings` endpoint to allow the DM to update these flags.
+- **Frontend:** Updated `Room` and `EntityCard` types to include visibility settings.
+- **Frontend:** Updated `EntityCard` to conditionally hide HP numbers and health bars based on the new `hideHP` prop.
+- **Frontend:** Added two toggle buttons ("Visible"/"Hidden") to the DM's header to control HP visibility for players and enemies independently.
+- **UI Logic:** Visibility settings are enforced for players only; the DM always sees all HP information.
+
+**Verification:**
+- Verified backend and frontend builds pass (`go build` and `npm run build`).
+
+**Notes / Follow-ups:**
+- Toggles use a standard "Visible" (emerald) and "Hidden" (red) visual state for the DM.
+
+### 2026-05-02 - Refine Knight animations (Flip, Hurt threshold, Hit timing)
+
+**Status:** Done
+
+**Task:**
+Flip knight sprites horizontally, update the hurt threshold to 25% health, and ensure the hit animation plays fully once before returning to idle.
+
+**Files changed:**
+- client/src/components/EntityCard.tsx
+
+**Summary:**
+- **Visuals:** Added `transform: scaleX(-1)` to the knight sprite to flip it horizontally.
+- **Animation Logic:** Refined the hit detection to play through all 4 frames of the `hit` sequence (800ms) before reverting to the background animation (Idle or Hurt).
+- **Hurt State:** Lowered the health threshold for the `idlehurt` animation from 30% to 25%.
+- **Verification:** Ran `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- None.
+
+### 2026-05-02 - Refactor Knight animations to use individual frames
+
+**Status:** Done
+
+**Task:**
+Update the knight animation system to use the new directory structure where each frame is a separate file instead of a single sprite sheet.
+
+**Files changed:**
+- client/src/components/EntityCard.tsx
+
+**Summary:**
+- **Animation Logic:** Switched from CSS `steps()` animations to a React-based `setInterval` loop that cycles through an array of imported image frames.
+- **Organization:** Imported all 12 frames (Idle, Hurt, Hit) from their respective subdirectories (`idle/`, `hurt/`, `hit/`).
+- **Responsive State:** The animation loop correctly switches between frame sets based on current health and recent damage events.
+- **Verification:** Ran `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- The animation speed is set to 200ms per frame (0.8s for a full 4-frame cycle), which provides a smooth but retro RPG feel.
+
+### 2026-05-02 - Implement Animated Knight Sprites
+
+**Status:** Done
+
+**Task:**
+Implement 4-frame CSS animations for the knight character using three different sprite sheets for Idle, Hurt (Low HP), and Damage (Hit) states.
+
+**Files changed:**
+- client/src/components/EntityCard.tsx
+
+**Summary:**
+- **Animations:** Created three CSS keyframe animations (`knight-idle`, `knight-hurt`, `knight-damage`) using the `steps(4)` timing function for pixel-perfect frame switching.
+- **State Logic:**
+    - **Idle:** Default 4-frame loop using `knight_idle253x64px.png`.
+    - **Hurt:** Swaps to `knight_idle_hurt266x64px.png` loop automatically when HP is $\le 30\%$.
+    - **Damage:** Temporarily plays `knight_damage281x64px.png` for 500ms whenever the entity's health decreases.
+- **Visuals:** Added `imageRendering: "pixelated"` to ensure the sprites stay sharp on all screens.
+- **Verification:** Ran `npm run build` (passed).
+
+**Notes / Follow-ups:**
+- Sprite sheet dimensions were extracted from filenames (253px, 266px, 281px) to calculate precise frame widths.
+
+### 2026-05-02 - Implement Knight sprite for players
+
+**Status:** Done
+
+**Task:**
+Make all players in the room display the knight sprite from the new sprite sheet.
+
+**Files changed:**
+- client/src/components/EntityCard.tsx
+- client/src/pages/RoomPage.tsx
+
+**Summary:**
+- **Refactor:** Created a new `EntityCard` component to standardize how entities (players and creatures) are displayed.
+- **Visuals:** Integrated the `knight_character.png` sprite sheet for all player entities.
+- **UI Logic:** Added a health bar and a sprite preview box to the entity cards.
+- **UI Logic:** Maintained existing functionality for turn highlighting, selection, and the "End Your Turn" button.
+
+**Verification:**
+- Ran `npm run build` in the `client` directory (passed).
+- Verified that the sprite sheet is correctly bundled and referenced in the build output.
+
+**Notes / Follow-ups:**
+- The sprite display currently shows a basic crop (the left-most part of the sheet). Further refinement may be needed to correctly frame specific animations or frames once the sheet dimensions are known.
+
+### 2026-05-02 - Create character sprite directories
+
+**Status:** Done
+
+**Task:**
+Create the directories necessary to prepare the project to able to use character sprites, organized by type.
+
+**Files changed:**
+- client/src/assets/sprites/players/.gitkeep
+- client/src/assets/sprites/enemies/.gitkeep
+
+**Summary:**
+- Created `client/src/assets/sprites/players` directory for player character sprites.
+- Created `client/src/assets/sprites/enemies` directory for enemy/creature sprites.
+- Added `.gitkeep` files to both directories to ensure they are tracked by git.
+
+**Verification:**
+- Verified directory creation with `ls -R client/src/assets/sprites`.
+
+**Notes / Follow-ups:**
+- None.
+
 ### 2026-05-01 - Fix player "End Turn" button interaction
 
 **Status:** Done

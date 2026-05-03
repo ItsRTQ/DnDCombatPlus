@@ -30,11 +30,21 @@ type Entity struct {
 	Statuses  []Status   `json:"statuses"`
 }
 
+type LogEntry struct {
+	EntityName string     `json:"entityName"`
+	EntityType EntityType `json:"entityType"`
+	Message    string     `json:"message"`
+}
+
 type Room struct {
-	Key         string             `json:"roomKey"`
-	DMToken     string             `json:"-"`
-	Entities    map[string]*Entity `json:"entities"`
-	CurrentTurn string             `json:"currentTurn"`
+	Key          string             `json:"roomKey"`
+	DMToken      string             `json:"-"`
+	Entities     map[string]*Entity `json:"entities"`
+	CurrentTurn  string             `json:"currentTurn"`
+	HidePlayerHP bool               `json:"hidePlayerHP"`
+	HideEnemyHP  bool               `json:"hideEnemyHP"`
+	SimpleView   bool               `json:"simpleView"`
+	Logs         []LogEntry         `json:"logs"`
 }
 
 type RoomManager struct {
@@ -63,17 +73,63 @@ func (rm *RoomManager) CreateRoom() (*Room, error) {
 	defer rm.mu.Unlock()
 
 	room := &Room{
-		Key:         key,
-		DMToken:     token,
-		Entities:    make(map[string]*Entity),
-		CurrentTurn: "",
+		Key:          key,
+		DMToken:      token,
+		Entities:     make(map[string]*Entity),
+		CurrentTurn:  "",
+		HidePlayerHP: false,
+		HideEnemyHP:  false,
+		SimpleView:   false,
+		Logs:         []LogEntry{},
 	}
 
 	rm.rooms[key] = room
 	return room, nil
 }
 
+func (rm *RoomManager) addLog(room *Room, entity *Entity, message string) {
+	room.Logs = append(room.Logs, LogEntry{
+		EntityName: entity.Name,
+		EntityType: entity.Type,
+		Message:    message,
+	})
+	if len(room.Logs) > 50 {
+		room.Logs = room.Logs[len(room.Logs)-50:]
+	}
+}
+
+func entityLogLabel(entityType EntityType) string {
+	if entityType == EntityEnemy {
+		return "Enemy"
+	}
+	return "Character"
+}
+
+func (rm *RoomManager) ToggleSettings(roomKey string, hidePlayerHP *bool, hideEnemyHP *bool, simpleView *bool) error {
+	roomKey = strings.ToLower(roomKey)
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return fmt.Errorf("room not found")
+	}
+
+	if hidePlayerHP != nil {
+		room.HidePlayerHP = *hidePlayerHP
+	}
+	if hideEnemyHP != nil {
+		room.HideEnemyHP = *hideEnemyHP
+	}
+	if simpleView != nil {
+		room.SimpleView = *simpleView
+	}
+
+	return nil
+}
+
 func (rm *RoomManager) GetRoom(key string) (*Room, bool) {
+	key = strings.ToLower(key)
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
@@ -82,6 +138,7 @@ func (rm *RoomManager) GetRoom(key string) (*Room, bool) {
 }
 
 func (rm *RoomManager) DeleteRoom(key string, token string) error {
+	key = strings.ToLower(key)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -99,6 +156,7 @@ func (rm *RoomManager) DeleteRoom(key string, token string) error {
 }
 
 func (rm *RoomManager) AddEntity(roomKey string, name string, entityType EntityType, maxHealth int) (*Entity, error) {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -138,6 +196,7 @@ func (rm *RoomManager) AddEntity(roomKey string, name string, entityType EntityT
 }
 
 func (rm *RoomManager) JoinPlayer(roomKey string, name string) (*Room, *Entity, error) {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -189,6 +248,7 @@ func (rm *RoomManager) JoinPlayer(roomKey string, name string) (*Room, *Entity, 
 }
 
 func (rm *RoomManager) UpdateEntity(roomKey string, entityId string, name *string, maxHealth *int) (*Entity, error) {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -217,6 +277,7 @@ func (rm *RoomManager) UpdateEntity(roomKey string, entityId string, name *strin
 }
 
 func (rm *RoomManager) ApplyDamage(roomKey string, entityId string, amount int) (*Entity, error) {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -246,10 +307,13 @@ func (rm *RoomManager) ApplyDamage(roomKey string, entityId string, amount int) 
 		entity.Health = 0
 	}
 
+	rm.addLog(room, entity, fmt.Sprintf("Took %d damage", amount))
+
 	return entity, nil
 }
 
 func (rm *RoomManager) ApplyHeal(roomKey string, entityId string, amount int) (*Entity, error) {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -268,10 +332,13 @@ func (rm *RoomManager) ApplyHeal(roomKey string, entityId string, amount int) (*
 		entity.Health = entity.MaxHealth
 	}
 
+	rm.addLog(room, entity, fmt.Sprintf("Heal %d", amount))
+
 	return entity, nil
 }
 
 func (rm *RoomManager) SetCurrentTurn(roomKey string, entityId string) error {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -280,18 +347,30 @@ func (rm *RoomManager) SetCurrentTurn(roomKey string, entityId string) error {
 		return fmt.Errorf("room not found")
 	}
 
-	// entityId can be empty to clear turn
-	if entityId != "" {
-		if _, ok := room.Entities[entityId]; !ok {
-			return fmt.Errorf("entity not found")
+	// Log turn end for previous entity
+	if room.CurrentTurn != "" {
+		if prev, ok := room.Entities[room.CurrentTurn]; ok {
+			rm.addLog(room, prev, "turn end")
 		}
 	}
 
-	room.CurrentTurn = entityId
+	// entityId can be empty to clear turn
+	if entityId != "" {
+		entity, ok := room.Entities[entityId]
+		if !ok {
+			return fmt.Errorf("entity not found")
+		}
+		room.CurrentTurn = entityId
+		rm.addLog(room, entity, "turn start")
+	} else {
+		room.CurrentTurn = ""
+	}
+
 	return nil
 }
 
 func (rm *RoomManager) RequestEndTurn(roomKey string, entityId string) error {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -304,11 +383,16 @@ func (rm *RoomManager) RequestEndTurn(roomKey string, entityId string) error {
 		return fmt.Errorf("not your turn")
 	}
 
+	if entity, ok := room.Entities[entityId]; ok {
+		rm.addLog(room, entity, "turn end")
+	}
+
 	room.CurrentTurn = "" // Directly clear the turn
 	return nil
 }
 
 func (rm *RoomManager) RemoveEntity(roomKey string, entityId string) error {
+	roomKey = strings.ToLower(roomKey)
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
