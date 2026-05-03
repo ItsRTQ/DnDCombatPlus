@@ -4,6 +4,8 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -19,7 +21,6 @@ func New(addr string) *http.Server {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /", homeHandler)
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /ws/rooms/{key}", s.wsHandler)
 	mux.HandleFunc("POST /rooms", s.createRoomHandler)
@@ -34,6 +35,27 @@ func New(addr string) *http.Server {
 	mux.HandleFunc("POST /rooms/{key}/entities/{id}/heal", s.healEntityHandler)
 	mux.HandleFunc("PUT /rooms/{key}/turn", s.setTurnHandler)
 	mux.HandleFunc("PATCH /rooms/{key}/settings", s.toggleSettingsHandler)
+
+	// Serve static files from the React app if it exists
+	if _, err := os.Stat("./client/dist"); err == nil {
+		fileServer := http.FileServer(http.Dir("./client/dist"))
+		mux.Handle("GET /", fileServer)
+		// Handle SPA routing: redirect all non-API requests to index.html
+		mux.HandleFunc("GET /{path...}", func(w http.ResponseWriter, r *http.Request) {
+			// If the request is for a file that doesn't exist, serve index.html
+			path := r.URL.Path
+			if strings.HasPrefix(path, "/health") || 
+			   strings.HasPrefix(path, "/ws/") || 
+			   strings.HasPrefix(path, "/rooms") {
+				// These should have been caught by specific handlers, 
+				// but just in case, don't serve index.html for them.
+				return
+			}
+			
+			// If it's not a known API path, check if it's a file
+			http.ServeFile(w, r, "./client/dist/index.html")
+		})
+	}
 
 	// Simple CORS middleware
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -56,10 +78,6 @@ func New(addr string) *http.Server {
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-}
-
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "DnD Combat Plus is running")
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {

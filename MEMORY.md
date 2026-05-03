@@ -67,6 +67,42 @@ One sentence describing the requested task.
 
 ## Change Log
 
+### 2026-05-03 - Unified Docker setup for single-command deployment
+
+**Status:** Done
+
+**Task:**
+Set up a single Dockerfile to run both frontend and backend as a unified application.
+
+**Files changed:**
+- internal/server/server.go
+- client/src/api/config.ts
+- client/src/pages/LandingPage.tsx
+- client/src/pages/RoomPage.tsx
+- Dockerfile
+- .dockerignore
+- docker-compose.yml
+- Makefile
+- GEMINI.md
+- (deleted) client/Dockerfile
+
+**Summary:**
+- **Refactor:** Updated the Go backend to serve the React frontend static assets from `./client/dist`.
+- **Infrastructure:** Implemented a multi-stage `Dockerfile` that builds the React app, then the Go binary, and combines them into a single minimal image.
+- **Frontend:** Created `client/src/api/config.ts` to dynamically determine API and WebSocket URLs based on `window.location`, allowing the app to work seamlessly when served from the Go backend.
+- **Routing:** Implemented SPA routing in the Go server to redirect non-API requests to `index.html`.
+- **Cleanup:** Simplified `docker-compose.yml` to a single service and removed the redundant `client/Dockerfile`.
+- **Documentation:** Updated `GEMINI.md` and `Makefile` with instructions for the new unified deployment flow.
+
+**Verification:**
+- `go test ./...` passed.
+- `npm run build` and `npm run lint` passed.
+- Verified that the single `Dockerfile` produces a functional image containing both backend and frontend.
+
+**Notes / Follow-ups:**
+- Development still supports separate hot-reloading via `make debug`.
+- Production deployment is now as simple as `docker build -t app . && docker run -p 8080:8080 app`.
+
 ### 2026-05-03 - Replaced DM sprite cycling with selection menu
 
 **Status:** Done

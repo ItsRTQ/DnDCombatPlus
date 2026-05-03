@@ -157,40 +157,32 @@ Go import paths are case-sensitive. Keep capitalization exactly as written.
 
 ---
 
-## Current Frontend Stack
+## Deployment strategy: Unified Docker image
 
-The frontend is now set up in:
+DnDCombatPlus is now deployed as a single unified Docker image. The Go backend serves the static assets of the React frontend from the `./client/dist` directory.
 
-```txt
-client/
+To run the whole app with a single command:
+
+```bash
+docker build -t dndcombatplus .
+docker run -p 8080:8080 dndcombatplus
 ```
 
-Frontend stack:
+Or using Docker Compose:
 
-```txt
-React
-Vite
-TypeScript
-Tailwind CSS
+```bash
+docker compose up -d
 ```
 
-The frontend should remain inside `/client`.
+The Go server handles SPA routing, redirecting all non-API and non-WebSocket requests to `index.html`.
 
-The Go backend remains at the repository root.
+### Configuration
 
-During development:
+The frontend dynamically determines its API and WebSocket base URLs:
+- In development (e.g., `npm run dev`), it uses environment variables from `.env` (defaulting to `:8080`).
+- In production (Docker), it defaults to the same origin as the served page.
 
-```txt
-Go backend:       http://localhost:8080
-Vite frontend:   http://localhost:5173
-```
-
-React communicates with Go through:
-
-- HTTP JSON APIs
-- WebSockets for realtime room updates
-
-The frontend must be mobile-first.
+This is managed in `client/src/api/config.ts`.
 
 ---
 
