@@ -2,8 +2,8 @@ const getApiBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   if (envUrl) return envUrl;
   
-  // Default to same origin for production/Docker
-  return window.location.origin;
+  // Use relative paths in production/Docker (when served by Go)
+  return "";
 };
 
 const getWsBaseUrl = () => {

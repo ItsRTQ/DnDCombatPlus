@@ -2,7 +2,7 @@
 FROM node:22-alpine AS frontend-builder
 WORKDIR /app/client
 COPY client/package*.json ./
-RUN npm install
+RUN npm ci
 COPY client/ .
 RUN npm run build
 
@@ -26,10 +26,12 @@ COPY --from=backend-builder /app/main .
 # Copy the static assets
 COPY --from=backend-builder /app/client/dist ./client/dist
 
-# Create data directory for SQLite if needed (though we use in-memory for now)
-RUN mkdir -p data
+# Create data directory for SQLite
+RUN mkdir -p /data
+ENV DB_PATH=/data/dndcombatplus.db
+ENV PORT=8080
 
-# Expose port 8080
+# Expose port (Render will use its own, but we expose our default)
 EXPOSE 8080
 
 # Command to run the application

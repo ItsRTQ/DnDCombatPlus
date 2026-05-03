@@ -42,11 +42,10 @@ func New(addr string) *http.Server {
 		fileServer := http.FileServer(distDir)
 
 		mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-			// Skip API and WebSocket routes to let them 404 if they didn't match specific handlers
+			// Skip specific API and WebSocket routes to let them 404 if they didn't match specific handlers
 			path := r.URL.Path
 			if strings.HasPrefix(path, "/health") || 
-			   strings.HasPrefix(path, "/ws/") || 
-			   strings.HasPrefix(path, "/rooms") {
+			   strings.HasPrefix(path, "/ws/") {
 				http.NotFound(w, r)
 				return
 			}
