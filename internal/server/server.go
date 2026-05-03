@@ -38,22 +38,30 @@ func New(addr string) *http.Server {
 
 	// Serve static files from the React app if it exists
 	if _, err := os.Stat("./client/dist"); err == nil {
-		fileServer := http.FileServer(http.Dir("./client/dist"))
-		mux.Handle("GET /", fileServer)
-		// Handle SPA routing: redirect all non-API requests to index.html
-		mux.HandleFunc("GET /{path...}", func(w http.ResponseWriter, r *http.Request) {
-			// If the request is for a file that doesn't exist, serve index.html
+		distDir := http.Dir("./client/dist")
+		fileServer := http.FileServer(distDir)
+
+		mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+			// Skip API and WebSocket routes to let them 404 if they didn't match specific handlers
 			path := r.URL.Path
 			if strings.HasPrefix(path, "/health") || 
 			   strings.HasPrefix(path, "/ws/") || 
 			   strings.HasPrefix(path, "/rooms") {
-				// These should have been caught by specific handlers, 
-				// but just in case, don't serve index.html for them.
+				http.NotFound(w, r)
 				return
 			}
-			
-			// If it's not a known API path, check if it's a file
-			http.ServeFile(w, r, "./client/dist/index.html")
+
+			// Try to open the file to see if it exists in dist
+			f, err := distDir.Open(path)
+			if err != nil {
+				// File doesn't exist, serve index.html for SPA routing
+				http.ServeFile(w, r, "./client/dist/index.html")
+				return
+			}
+			f.Close()
+
+			// File exists, serve it
+			fileServer.ServeHTTP(w, r)
 		})
 	}
 

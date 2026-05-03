@@ -67,6 +67,30 @@ One sentence describing the requested task.
 
 ## Change Log
 
+### 2026-05-03 - Fix: Resolved route conflict panic in unified Docker
+
+**Status:** Done
+
+**Task:**
+Fix the `panic: pattern "GET /{path...}" conflicts with pattern "GET /"` error occurring when running the unified Docker container.
+
+**Files changed:**
+- internal/server/server.go
+
+**Summary:**
+- **Bug Fix:** Consolidated overlapping route patterns in `internal/server/server.go`. Replaced the ambiguous `GET /` and `GET /{path...}` handlers with a single, intelligent `GET /` prefix handler.
+- **Logic:** The new handler intelligently checks the filesystem for requested assets. If found, they are served directly; otherwise, it falls back to `index.html` to support React's SPA routing.
+- **Security:** Added explicit checks to ensure that API (`/rooms`) and WebSocket (`/ws/`) paths do not trigger the SPA fallback, allowing them to correctly return 404 if no specific handler matches.
+- **Cleanup:** Removed unused imports and verified a clean build.
+
+**Verification:**
+- `go test ./...` passed.
+- `npm run build` and `npm run lint` passed.
+- Verified logic ensures static files, API routes, and SPA routing coexist without panic.
+
+**Notes / Follow-ups:**
+- This resolves the primary blocker for running the entire app within a single Docker container.
+
 ### 2026-05-03 - Unified Docker setup for single-command deployment
 
 **Status:** Done
