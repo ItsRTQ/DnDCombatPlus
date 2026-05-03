@@ -28,6 +28,7 @@ type Entity struct {
 	Health    int        `json:"health"`
 	TempHP    int        `json:"tempHP"`
 	Statuses  []Status   `json:"statuses"`
+	Sprite    string     `json:"sprite"`
 }
 
 type LogEntry struct {
@@ -189,6 +190,7 @@ func (rm *RoomManager) AddEntity(roomKey string, name string, entityType EntityT
 		Health:    maxHealth,
 		TempHP:    0,
 		Statuses:  []Status{},
+		Sprite:    "knight",
 	}
 
 	room.Entities[id] = entity
@@ -241,10 +243,94 @@ func (rm *RoomManager) JoinPlayer(roomKey string, name string) (*Room, *Entity, 
 		Health:    10,
 		TempHP:    0,
 		Statuses:  []Status{},
+		Sprite:    "knight",
 	}
 
 	room.Entities[id] = entity
 	return room, entity, nil
+}
+
+func (rm *RoomManager) SetEntitySprite(roomKey string, entityId string, sprite string) (*Entity, error) {
+	roomKey = strings.ToLower(roomKey)
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return nil, fmt.Errorf("room not found")
+	}
+
+	entity, ok := room.Entities[entityId]
+	if !ok {
+		return nil, fmt.Errorf("entity not found")
+	}
+
+	// Validate sprite choice
+	valid := false
+	if entity.Type == EntityPlayer {
+		for _, s := range []string{"knight", "rouge", "female_mage"} {
+			if s == sprite {
+				valid = true
+				break
+			}
+		}
+	} else {
+		for _, s := range []string{"bandit", "goblin", "red_dragon"} {
+			if s == sprite {
+				valid = true
+				break
+			}
+		}
+	}
+
+	if !valid {
+		return nil, fmt.Errorf("invalid sprite for entity type")
+	}
+
+	entity.Sprite = sprite
+	return entity, nil
+}
+
+func (rm *RoomManager) CycleEntitySprite(roomKey string, entityId string) (*Entity, error) {
+	roomKey = strings.ToLower(roomKey)
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	room, ok := rm.rooms[roomKey]
+	if !ok {
+		return nil, fmt.Errorf("room not found")
+	}
+
+	entity, ok := room.Entities[entityId]
+	if !ok {
+		return nil, fmt.Errorf("entity not found")
+	}
+
+	if entity.Type == EntityPlayer {
+		// Cycle between knight, rouge, and female_mage
+		switch entity.Sprite {
+		case "knight":
+			entity.Sprite = "rouge"
+		case "rouge":
+			entity.Sprite = "female_mage"
+		default:
+			entity.Sprite = "knight"
+		}
+	} else if entity.Type == EntityEnemy {
+		// Cycle between bandit, goblin, and red_dragon
+		switch entity.Sprite {
+		case "knight": // Default for enemies if not set
+			entity.Sprite = "bandit"
+		case "bandit":
+			entity.Sprite = "goblin"
+		case "goblin":
+			entity.Sprite = "red_dragon"
+		default:
+			entity.Sprite = "bandit"
+		}
+	}
+
+	return entity, nil
 }
 
 func (rm *RoomManager) UpdateEntity(roomKey string, entityId string, name *string, maxHealth *int) (*Entity, error) {

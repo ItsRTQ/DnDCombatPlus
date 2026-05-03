@@ -13,6 +13,7 @@ export interface Entity {
   health: number;
   tempHP: number;
   statuses: Status[];
+  sprite: string;
 }
 
 export interface LogEntry {

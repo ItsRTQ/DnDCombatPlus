@@ -1,6 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Room, Entity } from "../types/combat";
 import { EntityCard } from "../components/EntityCard";
+
+// Sprite Previews for Modal
+import knightPreview from "../assets/sprites/players/knight/idle/knight_idle_1.png";
+import rougePreview from "../assets/sprites/players/rouge/idle/rouge_idle_1.png";
+import magePreview from "../assets/sprites/players/female_mage/idle/femaile_mage_idle_1.png";
+import banditPreview from "../assets/sprites/enemies/bandit/idle/bandit_idle_1.png";
+import goblinPreview from "../assets/sprites/enemies/goblin/idle/goblin_idle_1.png";
+import dragonPreview from "../assets/sprites/enemies/red_dragon/idle/red_dragon_idle_1.png";
 
 interface RoomPageProps {
   onLeave: (message?: string) => void;
@@ -17,6 +25,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [isSpriteModalOpen, setIsSpriteModalOpen] = useState(false);
 
   // Selection State
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
@@ -27,6 +36,8 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
     visible: boolean;
     value: string;
   } | null>(null);
+
+  const socketRef = useRef<WebSocket | null>(null);
 
   const fetchRoom = useCallback(
     async (key: string) => {
@@ -57,8 +68,11 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
   useEffect(() => {
     if (!room?.roomKey) return;
 
-    const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/rooms/${room.roomKey}`;
+    const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/rooms/${room.roomKey}${
+      currentPlayer ? `?entityId=${currentPlayer.id}` : ""
+    }${dmToken ? `${currentPlayer ? "&" : "?"}token=${dmToken}` : ""}`;
     const socket = new WebSocket(wsUrl);
+    socketRef.current = socket;
 
     socket.onmessage = (event) => {
       try {
@@ -87,8 +101,41 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
 
     return () => {
       socket.close();
+      socketRef.current = null;
     };
-  }, [room?.roomKey, currentPlayer, onLeave]);
+  }, [room?.roomKey, currentPlayer, onLeave, isLeaving, dmToken]);
+
+  const cycleSprite = useCallback((entityId: string) => {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: "cycle_sprite",
+        entityId: entityId
+      }));
+    }
+  }, []);
+
+  const handlePlayerCycleSprite = useCallback(() => {
+    if (currentPlayer) {
+      cycleSprite(currentPlayer.id);
+    }
+  }, [currentPlayer, cycleSprite]);
+
+  const handleSetSprite = (sprite: string) => {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && selectedEntityId) {
+      socketRef.current.send(JSON.stringify({
+        type: "set_sprite",
+        entityId: selectedEntityId,
+        sprite: sprite
+      }));
+      setIsSpriteModalOpen(false);
+    }
+  };
+
+  const handleDMCycleSprite = () => {
+    if (selectedEntityId) {
+      setIsSpriteModalOpen(true);
+    }
+  };
 
   // Add Creature Modal State
   const [isAddCreatureModalOpen, setIsAddCreatureModalOpen] = useState(false);
@@ -525,6 +572,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
                   canSelect={!!dmToken}
                   onClick={() => dmToken && setSelectedEntityId(p.id)}
                   onEndTurn={requestEndTurn}
+                  onCycleSprite={handlePlayerCycleSprite}
                   hideHP={!dmToken && room?.hidePlayerHP}
                   simple={true}
                 />
@@ -588,6 +636,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
                     canSelect={!!dmToken}
                     onClick={() => dmToken && setSelectedEntityId(p.id)}
                     onEndTurn={requestEndTurn}
+                    onCycleSprite={handlePlayerCycleSprite}
                     hideHP={!dmToken && room?.hidePlayerHP}
                   />
                 ))
@@ -667,6 +716,12 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
                 className="h-12 rounded-xl bg-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-widest border border-blue-500/20 hover:bg-blue-500/30 transition"
               >
                 Set Turn
+              </button>
+              <button
+                onClick={handleDMCycleSprite}
+                className="h-12 rounded-xl bg-purple-500/20 text-purple-400 text-xs font-bold uppercase tracking-widest border border-purple-500/20 hover:bg-purple-500/30 transition"
+              >
+                Select Sprite
               </button>
               <button
                 onClick={() => openActionModal("rename")}
@@ -952,6 +1007,102 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
                 className="h-12 w-full text-sm font-bold text-white/40 transition hover:text-white"
               >
                 Go Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sprite Selection Modal (DM Only) */}
+      {dmToken && isSpriteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setIsSpriteModalOpen(false)}
+          />
+          <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <h2 className="text-2xl font-black tracking-tight text-white">
+              Select Sprite
+            </h2>
+            <p className="mt-2 text-sm text-white/60">
+              Choose a new visual representation for {selectedEntity?.name}.
+            </p>
+
+            <div className="mt-8 grid grid-cols-3 gap-4">
+              {selectedEntity?.type === "player" ? (
+                <>
+                  {[
+                    { id: "knight", name: "Knight", img: knightPreview },
+                    { id: "rouge", name: "Rogue", img: rougePreview },
+                    { id: "female_mage", name: "Mage", img: magePreview },
+                  ].map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => handleSetSprite(s.id)}
+                      className={`group flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${
+                        selectedEntity.sprite === s.id
+                          ? "bg-purple-500/20 border-purple-500"
+                          : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
+                      }`}
+                    >
+                      <div className="relative w-16 h-16 flex items-center justify-center bg-black/40 rounded-xl overflow-hidden">
+                        <img
+                          src={s.img}
+                          alt={s.name}
+                          className="h-16 w-auto object-contain transition-transform group-hover:scale-110"
+                          style={{
+                            imageRendering: "pixelated",
+                            transform: "scaleX(-1)",
+                          }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-white/60">
+                        {s.name}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {[
+                    { id: "bandit", name: "Bandit", img: banditPreview },
+                    { id: "goblin", name: "Goblin", img: goblinPreview },
+                    { id: "red_dragon", name: "Dragon", img: dragonPreview },
+                  ].map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => handleSetSprite(s.id)}
+                      className={`group flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${
+                        selectedEntity?.sprite === s.id
+                          ? "bg-purple-500/20 border-purple-500"
+                          : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
+                      }`}
+                    >
+                      <div className="relative w-16 h-16 flex items-center justify-center bg-black/40 rounded-xl overflow-hidden">
+                        <img
+                          src={s.img}
+                          alt={s.name}
+                          className="h-16 w-auto object-contain transition-transform group-hover:scale-110"
+                          style={{
+                            imageRendering: "pixelated",
+                          }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-white/60">
+                        {s.name}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+
+            <div className="mt-8 border-t border-white/10 pt-6">
+              <button
+                onClick={() => setIsSpriteModalOpen(false)}
+                className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-xs font-bold uppercase tracking-widest text-white/60 hover:text-white transition"
+              >
+                Cancel
               </button>
             </div>
           </div>
