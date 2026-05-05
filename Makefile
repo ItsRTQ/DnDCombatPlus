@@ -12,7 +12,7 @@ run:
 
 debug:
 	@echo "Starting $(APP_NAME) in DEBUG mode (Hot Reload)..."
-	docker compose -f docker-compose.debug.yml up
+	docker compose -f docker-compose.debug.yml up --build
 
 stop:
 	@echo "Stopping $(APP_NAME)..."
@@ -30,11 +30,15 @@ build:
 	@echo "Building Docker images..."
 	docker compose build
 
+build-image:
+	@echo "Building unified Docker image..."
+	docker build -t dndcombatplus .
+
 test:
 	@echo "Running tests in Docker..."
 	docker compose up -d --build
-	@echo "Waiting for backend to be healthy..."
-	@docker compose ps backend | grep -q "(healthy)" || (echo "Waiting..." && sleep 5)
+	@echo "Waiting for app to be healthy..."
+	@docker compose ps app | grep -q "(healthy)" || (echo "Waiting..." && sleep 5)
 	@curl -f $(HEALTH_URL) || (echo "Health check failed" && docker compose down && exit 1)
 	@echo "App is healthy."
 	@docker compose down

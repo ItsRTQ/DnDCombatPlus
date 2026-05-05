@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Room, Entity } from "../types/combat";
 import { EntityCard } from "../components/EntityCard";
+import { API_BASE_URL, WS_BASE_URL } from "../api/config";
 
 // Sprite Previews for Modal
 import knightPreview from "../assets/sprites/players/knight/idle/knight_idle_1.png";
@@ -43,7 +44,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
     async (key: string) => {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/rooms/${key}`
+          `${API_BASE_URL}/rooms/${key}`
         );
         if (response.ok) {
           const data = await response.json();
@@ -68,7 +69,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
   useEffect(() => {
     if (!room?.roomKey) return;
 
-    const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/rooms/${room.roomKey}${
+    const wsUrl = `${WS_BASE_URL}/ws/rooms/${room.roomKey}${
       currentPlayer ? `?entityId=${currentPlayer.id}` : ""
     }${dmToken ? `${currentPlayer ? "&" : "?"}token=${dmToken}` : ""}`;
     const socket = new WebSocket(wsUrl);
@@ -162,7 +163,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
     if (!room || !dmToken || !selectedEntityId || !actionModal) return;
 
     const { type, value } = actionModal;
-    const urlBase = `${import.meta.env.VITE_API_BASE_URL}/rooms/${
+    const urlBase = `${API_BASE_URL}/rooms/${
       room.roomKey
     }/entities/${selectedEntityId}`;
 
@@ -204,7 +205,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
     if (!room || !dmToken || !selectedEntityId) return;
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/rooms/${room.roomKey}/turn`,
+        `${API_BASE_URL}/rooms/${room.roomKey}/turn`,
         {
           method: "PUT",
           headers: {
@@ -226,7 +227,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
     if (!room || !currentPlayer) return;
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/rooms/${
+        `${API_BASE_URL}/rooms/${
           room.roomKey
         }/entities/${currentPlayer.id}/end-turn`,
         {
@@ -278,7 +279,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
       // DM is leaving, end the session
       try {
         await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/rooms/${room.roomKey}`,
+          `${API_BASE_URL}/rooms/${room.roomKey}`,
           {
             method: "DELETE",
             headers: {
@@ -293,7 +294,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
       // Player is leaving, remove their entity
       try {
         await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/rooms/${room.roomKey}/entities/${
+          `${API_BASE_URL}/rooms/${room.roomKey}/entities/${
             currentPlayer.id
           }`,
           {
@@ -315,7 +316,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/rooms/${
+        `${API_BASE_URL}/rooms/${
           room.roomKey
         }/entities/${selectedEntityId}`,
         {
@@ -345,7 +346,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/rooms/${room.roomKey}/settings`,
+        `${API_BASE_URL}/rooms/${room.roomKey}/settings`,
         {
           method: "PATCH",
           headers: {
@@ -365,7 +366,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
     setIsStarting(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/rooms`,
+        `${API_BASE_URL}/rooms`,
         {
           method: "POST",
         }
@@ -388,7 +389,7 @@ export function RoomPage({ onLeave, initialRoom, currentPlayer }: RoomPageProps)
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/rooms/${room.roomKey}/entities`,
+        `${API_BASE_URL}/rooms/${room.roomKey}/entities`,
         {
           method: "POST",
           headers: {

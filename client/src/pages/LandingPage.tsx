@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Room, Entity } from "../types/combat";
+import { API_BASE_URL } from "../api/config";
 
 interface LandingPageProps {
   onCreateRoom: () => void;
@@ -43,7 +44,7 @@ export function LandingPage({
     setIsJoining(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/rooms/join`,
+        `${API_BASE_URL}/rooms/join`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
